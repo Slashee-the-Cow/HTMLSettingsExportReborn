@@ -68,7 +68,8 @@ Item
 		{
 			id: fileDialogSave
 			// fileUrl QT5 !
-			onAccepted: UM.ActiveTool.setProperty("FileFolder", urlToStringPath(selectedFile))
+			// selectedFile QT6 !
+			onAccepted: UM.ActiveTool.setProperty("FileFolder", urlToStringPath(fileUrl))
 			nameFilters: "*.html"
 			selectExisting : false
 			folder:pathToUrl(UM.ActiveTool.properties.getValue("FileFolder"))		

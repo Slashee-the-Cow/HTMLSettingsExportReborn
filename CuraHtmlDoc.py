@@ -2,6 +2,9 @@
 # Copyright (c) 2023 5@xes
 # CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
 #-----------------------------------------------------------------------------------------------------------
+#
+# Version 0.0.2 : simplify the source code
+#-----------------------------------------------------------------------------------------------------------
 
 import os
 import time
@@ -35,7 +38,6 @@ from UM.Logger import Logger
 from UM.Message import Message
 from UM.Scene.Selection import Selection
 from UM.Settings.InstanceContainer import InstanceContainer
-from UM.Settings.ContainerRegistry import ContainerRegistry
 from UM.Qt.Duration import DurationFormat
 from UM.Preferences import Preferences
 
@@ -63,6 +65,7 @@ class CuraHtmlDoc(Tool):
 
         self._filefolder = ""
         self._auto_save = False
+        self._dirty = True
 
         self.Major=1
         self.Minor=0
@@ -85,7 +88,7 @@ class CuraHtmlDoc(Tool):
         self._toolbutton_item = None  # type: Optional[QObject]
         self._tool_enabled = False
 
-        self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", "Htmldoc.html")
+        self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", "Sample.html")
         self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
         
         self._application = CuraApplication.getInstance()
@@ -94,15 +97,25 @@ class CuraHtmlDoc(Tool):
         self.setExposedProperties("FileFolder", "AutoSave")
 
         self._preferences = self._application.getPreferences()
-        self._preferences.addPreference("CuraHtmlDoc/auto_save", False)
         # auto_save
+        self._preferences.addPreference("CuraHtmlDoc/auto_save", False)
         self._auto_save = bool(self._preferences.getValue("CuraHtmlDoc/auto_save"))        
 
+        # filefolder
+        self._preferences.addPreference("CuraHtmlDoc/folder", False)
+        self._filefolder = bool(self._preferences.getValue("CuraHtmlDoc/folder"))   
+
+        # Folder Doesn't Exist
+        if not os.path.isdir(self._filefolder) : 
+            self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
+            Message(text = catalog.i18nc("@message","Save path set to : \n %s") % self._filefolder, title = catalog.i18nc("@title", "Cura Html Doc")).show()
+                    
         # Before to Exit
         self._application.getOnExitCallbackManager().addCallback(self._onExitCallback)        
 
         # Part of code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
         self._application.engineCreatedSignal.connect(self._onEngineCreated)
+        self._application.globalContainerStackChanged.connect(self._onGlobalStackChanged)
         Selection.selectionChanged.connect(self._onSelectionChanged)
         self._controller.activeStageChanged.connect(self._onActiveStageChanged)
         self._controller.activeToolChanged.connect(self._onActiveToolChanged)
@@ -212,28 +225,35 @@ class CuraHtmlDoc(Tool):
         return result
     # -------------------------------------------------------------------------------------------------------------
     def _onExitCallback(self)->None:
-        ''' Called as Cura is closing to ensure that script were saved before exiting '''
-        # Save the script 
+        ''' Called as Cura is closing to ensure that the Html Doc file were saved before exiting '''
+        # Save the Html file 
         try:
-            Logger.log("d", "onExitCallback")
-            # with open(self._doc_file, "wt") as f:
-            #     f.write(self._script)
-        except AttributeError:
+            if self._dirty :
+                self._onWriteStarted
+                Logger.log("d", "onExitCallback")
+        except:
             pass
         
-        Logger.log("d", "Save Done for : {}".format(self._doc_file))
         self._application.triggerNextExitCheck()        
 
+    def _onGlobalStackChanged(self) -> None:
+        Logger.log("d", "onGlobalStackChanged")
+        self._dirty = True
+        
     def getFileFolder(self) -> str:
-        # Logger.log("d", "Script folder {}".format(self._filefolder))
+        # Logger.log("d", "File folder {}".format(self._filefolder))
         return self._filefolder
 
     def setFileFolder(self, value: str) -> None:
-        self._doc_file = value 
+        self._doc_file = value        
+        # Save and Open the HTML file
         self._openHtmlPage(self._doc_file)
         # with open(str(value), "wt") as stream:
         #     self._write(stream)
-        Message(text = "Doc succesfully Saved : \n %s" % value, title = catalog.i18nc("@title", "Cura Html Doc")).show()
+        self._filefolder = os.path.dirname(self._doc_file)
+        self._preferences.setValue("CuraHtmlDoc/folder", self._filefolder)
+        Logger.log("w", "Filefolder set to {}".format(self._filefolder))
+        Message(text = catalog.i18nc("@message","Doc succesfully Saved : \n %s") % value, title = catalog.i18nc("@title", "Cura Html Doc")).show()
 
     def getAutoSave(self )-> bool:
         return self._auto_save
@@ -259,13 +279,20 @@ class CuraHtmlDoc(Tool):
     def _onWriteStarted(self, output_device):
         '''Save HTML page when gcode is saved.'''
         try:
-            if self._auto_save :
+            if self._auto_save :                   
                 print_information = CuraApplication.getInstance().getPrintInformation() 
                 file_html = print_information.jobName + ".html"
-                self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", file_html)
+                # Folder Doesn't Exist Anymore
+                if not os.path.isdir(self._filefolder) : 
+                    self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
+                    Message(text = catalog.i18nc("@message","Save path set to : \n %s") % self._filefolder, title = catalog.i18nc("@title", "Cura Html Doc")).show()               
+                
+                self._doc_file = os.path.join(self._filefolder, file_html)
                 # self._openHtmlPage(self._doc_file)
+                # Just Save the file
                 with open(self._doc_file, 'w', encoding='utf-8') as fhandle:
                     self._write(fhandle)
+                    self._dirty = False
 
         except Exception:
             # We really can't afford to have a mistake here, as this would break the sending of g-code to a device
@@ -371,7 +398,7 @@ class CuraHtmlDoc(Tool):
             # thumbnail_file = zipfile.ZipInfo(THUMBNAIL_PATH)
             # Don't try to compress snapshot file, because the PNG is pretty much as compact as it will get
             # archive.writestr(thumbnail_file, thumbnail_buffer.data()) 
-            Logger.log("d", "stream = {}".format(encodedSnapshot))
+            # Logger.log("d", "stream = {}".format(encodedSnapshot))
             stream.write("<tr><td colspan='3'><center><img src='data:image/png;base64," + str(encodedSnapshot)+ "' width='300' height='300' alt='" + print_information.jobName + "' title='" + print_information.jobName + "' /></cente></td></tr>" )            
               
         # File
