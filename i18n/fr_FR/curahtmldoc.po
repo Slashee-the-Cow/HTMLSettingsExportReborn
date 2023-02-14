@@ -1,10 +1,10 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the Cura HTML Settings package.
+# This file is distributed under the same license as the CuraHtmlDoc package.
 # 5axes <5axes@free.fr>, 2023.
 msgid ""
 msgstr ""
-"Project-Id-Version: Cura HTML Settings\n"
+"Project-Id-Version: Cura Html Doc\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-02-14 14:31+0000\n"
 "PO-Revision-Date: 2023-02-14 15:33+0200\n"
@@ -133,10 +133,7 @@ msgctxt "@option:check"
 msgid "Auto save"
 msgstr "Sauvegarde Auto"
 
-#~ msgctxt "@item:inlistbox"
-#~ msgid "Cura Settings Documentation"
-#~ msgstr "Documentation des paramètres Cura"
-
-#~ msgctxt "@label"
-#~ msgid "%d D %d H %d Mn"
-#~ msgstr "%d J %d H %d Mn"
+#: CuraHtmlDoc.py
+msgctxt "@label"
+msgid "%d D %d H %d Mn"
+msgstr "%d J %d H %d Mn"
