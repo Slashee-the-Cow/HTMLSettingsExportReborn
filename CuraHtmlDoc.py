@@ -1,5 +1,6 @@
 #-----------------------------------------------------------------------------------------------------------
-# Copyright (c) 5@xes
+# Copyright (c) 2023 5@xes
+# CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -8,7 +9,6 @@ import platform
 import tempfile
 import html
 import webbrowser
-
 
 from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Any, Set
@@ -28,7 +28,6 @@ from cura.CuraVersion import CuraVersion  # type: ignore
 from cura.Utils.Threading import call_on_qt_thread
 from cura.Snapshot import Snapshot
 
-
 from UM.Application import Application
 from UM.Tool import Tool
 from UM.Event import Event
@@ -40,9 +39,9 @@ from UM.Settings.ContainerRegistry import ContainerRegistry
 from UM.Qt.Duration import DurationFormat
 from UM.Preferences import Preferences
 
-
 from UM.Resources import Resources
 from UM.i18n import i18nCatalog
+
 i18n_cura_catalog = i18nCatalog("cura")
 i18n_catalog = i18nCatalog("fdmprinter.def.json")
 i18n_extrud_catalog = i18nCatalog("fdmextruder.def.json")
@@ -91,6 +90,7 @@ class CuraHtmlDoc(Tool):
         
         self._application = CuraApplication.getInstance()
         self._controller = self.getController()
+        
         self.setExposedProperties("FileFolder", "AutoSave")
 
         self._preferences = self._application.getPreferences()
