@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-14 17:55+0000\n"
+"POT-Creation-Date: 2023-02-14 18:08+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,7 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: CuraHtmlDoc.py:110 CuraHtmlDoc.py:283
+#: CuraHtmlDoc.py:111 CuraHtmlDoc.py:284
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -25,17 +25,17 @@ msgid ""
 " %s"
 msgstr ""
 
-#: CuraHtmlDoc.py:110 CuraHtmlDoc.py:251 CuraHtmlDoc.py:283
+#: CuraHtmlDoc.py:111 CuraHtmlDoc.py:252 CuraHtmlDoc.py:284
 msgctxt "@title"
 msgid "Cura Html Doc"
 msgstr ""
 
-#: CuraHtmlDoc.py:157 __init__.py:24
+#: CuraHtmlDoc.py:158 __init__.py:24
 msgctxt "@label"
 msgid "CuraHtmlDoc"
 msgstr ""
 
-#: CuraHtmlDoc.py:251
+#: CuraHtmlDoc.py:252
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -43,7 +43,7 @@ msgid ""
 " %s"
 msgstr ""
 
-#: CuraHtmlDoc.py:312
+#: CuraHtmlDoc.py:313
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -51,83 +51,83 @@ msgid ""
 " %s"
 msgstr ""
 
-#: CuraHtmlDoc.py:312
+#: CuraHtmlDoc.py:313
 msgctxt "@info:title"
 msgid "Warning ! Doc Html Cura"
 msgstr ""
 
-#: CuraHtmlDoc.py:349
+#: CuraHtmlDoc.py:350
 msgctxt "@label"
 msgid "Print settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:350
+#: CuraHtmlDoc.py:351
 msgctxt "@action:label"
 msgid "Visible settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:351
+#: CuraHtmlDoc.py:352
 msgctxt "@action:label"
 msgid "Custom selection"
 msgstr ""
 
-#: CuraHtmlDoc.py:377
+#: CuraHtmlDoc.py:378
 msgctxt "@label"
 msgid "Job Name"
 msgstr ""
 
-#: CuraHtmlDoc.py:412
+#: CuraHtmlDoc.py:413
 msgctxt "@label"
 msgid "Intent"
 msgstr ""
 
-#: CuraHtmlDoc.py:414
+#: CuraHtmlDoc.py:415
 msgctxt "@label"
 msgid "Profile"
 msgstr ""
 
-#: CuraHtmlDoc.py:418
+#: CuraHtmlDoc.py:419
 msgctxt "@label:table_header"
 msgid "Quality"
 msgstr ""
 
-#: CuraHtmlDoc.py:430
+#: CuraHtmlDoc.py:431
 msgctxt "@label"
 msgid "Material"
 msgstr ""
 
-#: CuraHtmlDoc.py:430 CuraHtmlDoc.py:435 CuraHtmlDoc.py:551 CuraHtmlDoc.py:619
+#: CuraHtmlDoc.py:431 CuraHtmlDoc.py:436 CuraHtmlDoc.py:552 CuraHtmlDoc.py:620
 msgctxt "@label"
 msgid "Extruder"
 msgstr ""
 
-#: CuraHtmlDoc.py:435
+#: CuraHtmlDoc.py:436
 msgctxt "@label"
 msgid "Enabled"
 msgstr ""
 
-#: CuraHtmlDoc.py:444
+#: CuraHtmlDoc.py:445
 msgctxt "@label"
 msgid "Material estimation"
 msgstr ""
 
-#: CuraHtmlDoc.py:449
+#: CuraHtmlDoc.py:450
 msgctxt "@text"
 msgid "Material usage"
 msgstr ""
 
-#: CuraHtmlDoc.py:460 CuraHtmlDoc.py:463
+#: CuraHtmlDoc.py:461 CuraHtmlDoc.py:464
 msgctxt "@label"
 msgid "Filament Cost"
 msgstr ""
 
-#: CuraHtmlDoc.py:466
+#: CuraHtmlDoc.py:467
 #, python-format
 msgctxt "@text"
 msgid "%d D %d H %d Mn"
 msgstr ""
 
-#: CuraHtmlDoc.py:467
+#: CuraHtmlDoc.py:468
 msgctxt "@label"
 msgid "Printing Time"
 msgstr ""
