@@ -86,8 +86,8 @@ class CuraHtmlDoc(Tool):
         self._toolbutton_item = None  # type: Optional[QObject]
         self._tool_enabled = False
 
-        self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Htmldoc", "Htmldoc.html")
-        self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Htmldoc")
+        self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", "Htmldoc.html")
+        self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
         
         self._application = CuraApplication.getInstance()
         self._controller = self.getController()
