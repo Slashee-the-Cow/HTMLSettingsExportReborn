@@ -1,0 +1,9 @@
+{
+    "name": "Cura Html Doc",
+    "author": "5@xes",
+    "version": "0.0.1",
+    "description": "Generate Documentation Under Html Format.",
+    "api": 7,
+    "supported_sdk_versions": ["7.9.0", "8.0.0", "8.1.0", "8.2.0"],
+    "i18n-catalog": "curahtmldoc"
+}
