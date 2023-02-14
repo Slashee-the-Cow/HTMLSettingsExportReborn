@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-14 14:58+0000\n"
+"POT-Creation-Date: 2023-02-14 17:07+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,17 +17,33 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: CuraHtmlDoc.py:145 __init__.py:24
-msgctxt "@label"
-msgid "CuraHtmlDoc"
+#: CuraHtmlDoc.py:111 CuraHtmlDoc.py:288
+#, python-format
+msgctxt "@message"
+msgid ""
+"Save path set to : \n"
+" %s"
 msgstr ""
 
-#: CuraHtmlDoc.py:236
+#: CuraHtmlDoc.py:111 CuraHtmlDoc.py:256 CuraHtmlDoc.py:288
 msgctxt "@title"
 msgid "Cura Html Doc"
 msgstr ""
 
-#: CuraHtmlDoc.py:291
+#: CuraHtmlDoc.py:158 __init__.py:24
+msgctxt "@label"
+msgid "CuraHtmlDoc"
+msgstr ""
+
+#: CuraHtmlDoc.py:256
+#, python-format
+msgctxt "@message"
+msgid ""
+"Doc succesfully Saved : \n"
+" %s"
+msgstr ""
+
+#: CuraHtmlDoc.py:318
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -35,83 +51,83 @@ msgid ""
 " %s"
 msgstr ""
 
-#: CuraHtmlDoc.py:291
+#: CuraHtmlDoc.py:318
 msgctxt "@info:title"
 msgid "Warning ! Doc Html Cura"
 msgstr ""
 
-#: CuraHtmlDoc.py:328
+#: CuraHtmlDoc.py:355
 msgctxt "@label"
 msgid "Print settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:329
+#: CuraHtmlDoc.py:356
 msgctxt "@action:label"
 msgid "Visible settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:330
+#: CuraHtmlDoc.py:357
 msgctxt "@action:label"
 msgid "Custom selection"
 msgstr ""
 
-#: CuraHtmlDoc.py:356
+#: CuraHtmlDoc.py:383
 msgctxt "@label"
 msgid "Job Name"
 msgstr ""
 
-#: CuraHtmlDoc.py:391
+#: CuraHtmlDoc.py:418
 msgctxt "@label"
 msgid "Intent"
 msgstr ""
 
-#: CuraHtmlDoc.py:393
+#: CuraHtmlDoc.py:420
 msgctxt "@label"
 msgid "Profile"
 msgstr ""
 
-#: CuraHtmlDoc.py:397
+#: CuraHtmlDoc.py:424
 msgctxt "@label:table_header"
 msgid "Quality"
 msgstr ""
 
-#: CuraHtmlDoc.py:409
+#: CuraHtmlDoc.py:436
 msgctxt "@label"
 msgid "Material"
 msgstr ""
 
-#: CuraHtmlDoc.py:409 CuraHtmlDoc.py:414 CuraHtmlDoc.py:530 CuraHtmlDoc.py:598
+#: CuraHtmlDoc.py:436 CuraHtmlDoc.py:441 CuraHtmlDoc.py:557 CuraHtmlDoc.py:625
 msgctxt "@label"
 msgid "Extruder"
 msgstr ""
 
-#: CuraHtmlDoc.py:414
+#: CuraHtmlDoc.py:441
 msgctxt "@label"
 msgid "Enabled"
 msgstr ""
 
-#: CuraHtmlDoc.py:423
+#: CuraHtmlDoc.py:450
 msgctxt "@label"
 msgid "Material estimation"
 msgstr ""
 
-#: CuraHtmlDoc.py:428
+#: CuraHtmlDoc.py:455
 msgctxt "@text"
 msgid "Material usage"
 msgstr ""
 
-#: CuraHtmlDoc.py:439 CuraHtmlDoc.py:442
+#: CuraHtmlDoc.py:466 CuraHtmlDoc.py:469
 msgctxt "@label"
 msgid "Filament Cost"
 msgstr ""
 
-#: CuraHtmlDoc.py:445
+#: CuraHtmlDoc.py:472
 #, python-format
 msgctxt "@text"
 msgid "%d D %d H %d Mn"
 msgstr ""
 
-#: CuraHtmlDoc.py:446
+#: CuraHtmlDoc.py:473
 msgctxt "@label"
 msgid "Printing Time"
 msgstr ""
@@ -126,7 +142,7 @@ msgctxt "@label"
 msgid "Save As"
 msgstr ""
 
-#: qml_qt6/CuraHtmlDoc.qml:78 qml_qt5/CuraHtmlDoc.qml:78
+#: qml_qt6/CuraHtmlDoc.qml:78 qml_qt5/CuraHtmlDoc.qml:79
 msgctxt "@option:check"
 msgid "Auto save"
 msgstr ""
