@@ -3,7 +3,8 @@
 # CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
 #-----------------------------------------------------------------------------------------------------------
 #
-# Version 0.0.2 : simplify the source code
+# Version 0.0.2 : simplify the source code & Save Last Folder location
+# Version 0.0.3 : test
 #-----------------------------------------------------------------------------------------------------------
 
 import os
