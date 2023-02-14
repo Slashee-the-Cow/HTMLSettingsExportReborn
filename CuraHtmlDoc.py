@@ -65,7 +65,6 @@ class CuraHtmlDoc(Tool):
 
         self._filefolder = ""
         self._auto_save = False
-        self._dirty = True
 
         self.Major=1
         self.Minor=0
@@ -103,27 +102,27 @@ class CuraHtmlDoc(Tool):
 
         # filefolder
         self._preferences.addPreference("CuraHtmlDoc/folder", False)
-        self._filefolder = bool(self._preferences.getValue("CuraHtmlDoc/folder"))   
+        self._filefolder = self._preferences.getValue("CuraHtmlDoc/folder")   
 
         # Folder Doesn't Exist
         if not os.path.isdir(self._filefolder) : 
             self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
             Message(text = catalog.i18nc("@message","Save path set to : \n %s") % self._filefolder, title = catalog.i18nc("@title", "Cura Html Doc")).show()
+            self._preferences.setValue("CuraHtmlDoc/folder", self._filefolder)
                     
         # Before to Exit
         self._application.getOnExitCallbackManager().addCallback(self._onExitCallback)        
 
         # Part of code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
         self._application.engineCreatedSignal.connect(self._onEngineCreated)
-        self._application.globalContainerStackChanged.connect(self._onGlobalStackChanged)
         Selection.selectionChanged.connect(self._onSelectionChanged)
         self._controller.activeStageChanged.connect(self._onActiveStageChanged)
         self._controller.activeToolChanged.connect(self._onActiveToolChanged)
         
         self._application.getOutputDeviceManager().writeStarted.connect(self._onWriteStarted)
         
-        self._selection_tool = None  # type: Optional[Tool]
-
+        self._selection_tool = None  # type: Optional[Tool]    
+        
     # -------------------------------------------------------------------------------------------------------------
     # Origin of this code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
     # def _onSelectionChanged
@@ -225,20 +224,16 @@ class CuraHtmlDoc(Tool):
         return result
     # -------------------------------------------------------------------------------------------------------------
     def _onExitCallback(self)->None:
-        ''' Called as Cura is closing to ensure that the Html Doc file were saved before exiting '''
+        ''' Called as Cura is closing to ensure that the Html Doc file were saved before exiting 
+            Code must be change in a futur release not decided what to do here exactly V0.0.2   
+        '''
         # Save the Html file 
         try:
-            if self._dirty :
-                self._onWriteStarted
-                Logger.log("d", "onExitCallback")
+            Logger.log("d", "onExitCallback")
         except:
             pass
         
         self._application.triggerNextExitCheck()        
-
-    def _onGlobalStackChanged(self) -> None:
-        Logger.log("d", "onGlobalStackChanged")
-        self._dirty = True
         
     def getFileFolder(self) -> str:
         # Logger.log("d", "File folder {}".format(self._filefolder))
@@ -292,7 +287,6 @@ class CuraHtmlDoc(Tool):
                 # Just Save the file
                 with open(self._doc_file, 'w', encoding='utf-8') as fhandle:
                     self._write(fhandle)
-                    self._dirty = False
 
         except Exception:
             # We really can't afford to have a mistake here, as this would break the sending of g-code to a device
