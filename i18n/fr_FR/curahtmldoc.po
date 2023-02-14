@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Cura HTML Settings\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-26 14:14+0000\n"
-"PO-Revision-Date: 2023-01-26 15:28+0200\n"
+"POT-Creation-Date: 2023-02-14 14:31+0000\n"
+"PO-Revision-Date: 2023-02-14 15:33+0200\n"
 "Last-Translator: 5axes <5axes@free.fr>\n"
 "Language-Team: 5axes\n"
 "Language: fr\n"
@@ -17,87 +17,125 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Virtaal 0.7.1\n"
 
-#: __init__.py:16
-msgctxt "@item:inlistbox"
-msgid "Cura Settings Documentation"
-msgstr "Documentation des paramètres Cura"
+#: CuraHtmlDoc.py:158 __init__.py:24
+msgctxt "@label"
+msgid "CuraHtmlDoc"
+msgstr "CuraHtmlDoc"
 
-#: HtmlCuraSettings.py:113
+#: CuraHtmlDoc.py:249
+msgctxt "@title"
+msgid "Cura Html Doc"
+msgstr "Doc Html Cura"
+
+#: CuraHtmlDoc.py:286
+#, python-format
+msgctxt "@message"
+msgid ""
+"Default browser not defined open \n"
+" %s"
+msgstr ""
+"Navigateur par défaut non défini ouvert \n"
+" %s"
+
+#: CuraHtmlDoc.py:286
+msgctxt "@info:title"
+msgid "Warning ! Doc Html Cura"
+msgstr ""
+
+#: CuraHtmlDoc.py:323
 msgctxt "@label"
 msgid "Print settings"
 msgstr "Paramètres d'impression"
 
-#: HtmlCuraSettings.py:114
+#: CuraHtmlDoc.py:324
 msgctxt "@action:label"
 msgid "Visible settings"
 msgstr "Paramètres visibles"
 
-#: HtmlCuraSettings.py:115
+#: CuraHtmlDoc.py:325
 msgctxt "@action:label"
 msgid "Custom selection"
 msgstr "Sélection personnalisée"
 
-#: HtmlCuraSettings.py:141
+#: CuraHtmlDoc.py:351
 msgctxt "@label"
 msgid "Job Name"
 msgstr "Nom du Projet"
 
-#: HtmlCuraSettings.py:158
+#: CuraHtmlDoc.py:386
 msgctxt "@label"
 msgid "Intent"
 msgstr "Intention"
 
-#: HtmlCuraSettings.py:160
+#: CuraHtmlDoc.py:388
 msgctxt "@label"
 msgid "Profile"
 msgstr "Profil"
 
-#: HtmlCuraSettings.py:164
+#: CuraHtmlDoc.py:392
 msgctxt "@label:table_header"
 msgid "Quality"
 msgstr "Qualité"
 
-#: HtmlCuraSettings.py:176
+#: CuraHtmlDoc.py:404
 msgctxt "@label"
 msgid "Material"
 msgstr "Matériau"
 
-#: HtmlCuraSettings.py:176 HtmlCuraSettings.py:181 HtmlCuraSettings.py:297
-#: HtmlCuraSettings.py:365
+#: CuraHtmlDoc.py:404 CuraHtmlDoc.py:409 CuraHtmlDoc.py:525 CuraHtmlDoc.py:593
 msgctxt "@label"
 msgid "Extruder"
 msgstr "Extrudeuse"
 
-#: HtmlCuraSettings.py:181
+#: CuraHtmlDoc.py:409
 msgctxt "@label"
 msgid "Enabled"
 msgstr "Activer"
 
-#: HtmlCuraSettings.py:190
+#: CuraHtmlDoc.py:418
 msgctxt "@label"
 msgid "Material estimation"
 msgstr "Estimation matière"
 
-#: HtmlCuraSettings.py:195
+#: CuraHtmlDoc.py:423
 msgctxt "@text"
 msgid "Material usage"
 msgstr "Utilisation matériaux"
 
-#: HtmlCuraSettings.py:206 HtmlCuraSettings.py:209
+#: CuraHtmlDoc.py:434 CuraHtmlDoc.py:437
 msgctxt "@label"
 msgid "Filament Cost"
 msgstr "Coût du filament"
 
-#: HtmlCuraSettings.py:212
+#: CuraHtmlDoc.py:440
 #, python-format
 msgctxt "@text"
 msgid "%d D %d H %d Mn"
 msgstr "%d J %d H %d Mn"
 
-#: HtmlCuraSettings.py:213
+#: CuraHtmlDoc.py:441
 msgctxt "@label"
 msgid "Printing Time"
 msgstr "Temps d'impression"
+
+#: __init__.py:25
+msgctxt "@label"
+msgid "Cura Html Doc"
+msgstr "Doc Html Cura"
+
+#: qml_qt6/CuraHtmlDoc.qml:65 qml_qt5/CuraHtmlDoc.qml:63
+msgctxt "@label"
+msgid "Save As"
+msgstr "Enregistrer Sous"
+
+#: qml_qt6/CuraHtmlDoc.qml:80 qml_qt5/CuraHtmlDoc.qml:78
+msgctxt "@option:check"
+msgid "Auto save"
+msgstr "Sauvegarde Auto"
+
+#~ msgctxt "@item:inlistbox"
+#~ msgid "Cura Settings Documentation"
+#~ msgstr "Documentation des paramètres Cura"
 
 #~ msgctxt "@label"
 #~ msgid "%d D %d H %d Mn"
