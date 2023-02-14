@@ -106,23 +106,10 @@ class CuraHtmlDoc(Tool):
         Selection.selectionChanged.connect(self._onSelectionChanged)
         self._controller.activeStageChanged.connect(self._onActiveStageChanged)
         self._controller.activeToolChanged.connect(self._onActiveToolChanged)
-
-        # self._application.fileLoaded.connect(self._onFileLoaded)
-        self._application.fileCompleted.connect(self._onFileCompleted)
-
+        
+        self._application.getOutputDeviceManager().writeStarted.connect(self._onWriteStarted)
         
         self._selection_tool = None  # type: Optional[Tool]
-
-    def _onFileLoaded(self) -> None:
-        # Logger.log("d", "_onFileLoaded")
-        if self._auto_save:
-            Logger.log("d", "saveFile onFileLoaded")
-            self.saveFile()
-
-    def _onFileCompleted(self) -> None:
-        if self._auto_save:
-            Logger.log("d", "saveFile onFileCompleted")
-            self.saveFile()
 
     # -------------------------------------------------------------------------------------------------------------
     # Origin of this code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
@@ -269,6 +256,24 @@ class CuraHtmlDoc(Tool):
         except AttributeError:
             return None
 
+    def _onWriteStarted(self, output_device):
+        '''Save HTML page when gcode is saved.'''
+        try:
+            if self._auto_save :
+                print_information = CuraApplication.getInstance().getPrintInformation() 
+                file_html = print_information.jobName + ".html"
+                self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", file_html)
+                # self._openHtmlPage(self._doc_file)
+                with open(self._doc_file, 'w', encoding='utf-8') as fhandle:
+                    self._write(fhandle)
+
+        except Exception:
+            # We really can't afford to have a mistake here, as this would break the sending of g-code to a device
+            # (Either saving or directly to a printer). The functionality of the slice data is not *that* important.
+            # But we should be notified about these problems of course.
+            Logger.logException("e", "Exception raised in _onWriteStarted")
+                
+                
     def _has_browser(self):
         try:
             webbrowser.get()

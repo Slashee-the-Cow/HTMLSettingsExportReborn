@@ -1,10 +1,8 @@
 // Copyright (c) 2023 5@xes
 // CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
 // proterties values
-//   "FilePath" : Path to script
-//   "Script"	 : Script Code
-//   "Result"	 : Log of the Run Script
-//   "AutoSave"	: AutoSave
+//   "FileFolder" : Path to file
+//   "AutoSave"	 : AutoSave
 
 
 import QtQuick 6.0
