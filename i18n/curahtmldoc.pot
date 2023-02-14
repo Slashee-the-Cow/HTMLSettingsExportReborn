@@ -1,0 +1,132 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the CuraHtmlDoc package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: CuraHtmlDoc\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-02-14 14:31+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: CuraHtmlDoc.py:158 __init__.py:24
+msgctxt "@label"
+msgid "CuraHtmlDoc"
+msgstr ""
+
+#: CuraHtmlDoc.py:249
+msgctxt "@title"
+msgid "Cura Html Doc"
+msgstr ""
+
+#: CuraHtmlDoc.py:286
+#, python-format
+msgctxt "@message"
+msgid ""
+"Default browser not defined open \n"
+" %s"
+msgstr ""
+
+#: CuraHtmlDoc.py:286
+msgctxt "@info:title"
+msgid "Warning ! Doc Html Cura"
+msgstr ""
+
+#: CuraHtmlDoc.py:323
+msgctxt "@label"
+msgid "Print settings"
+msgstr ""
+
+#: CuraHtmlDoc.py:324
+msgctxt "@action:label"
+msgid "Visible settings"
+msgstr ""
+
+#: CuraHtmlDoc.py:325
+msgctxt "@action:label"
+msgid "Custom selection"
+msgstr ""
+
+#: CuraHtmlDoc.py:351
+msgctxt "@label"
+msgid "Job Name"
+msgstr ""
+
+#: CuraHtmlDoc.py:386
+msgctxt "@label"
+msgid "Intent"
+msgstr ""
+
+#: CuraHtmlDoc.py:388
+msgctxt "@label"
+msgid "Profile"
+msgstr ""
+
+#: CuraHtmlDoc.py:392
+msgctxt "@label:table_header"
+msgid "Quality"
+msgstr ""
+
+#: CuraHtmlDoc.py:404
+msgctxt "@label"
+msgid "Material"
+msgstr ""
+
+#: CuraHtmlDoc.py:404 CuraHtmlDoc.py:409 CuraHtmlDoc.py:525 CuraHtmlDoc.py:593
+msgctxt "@label"
+msgid "Extruder"
+msgstr ""
+
+#: CuraHtmlDoc.py:409
+msgctxt "@label"
+msgid "Enabled"
+msgstr ""
+
+#: CuraHtmlDoc.py:418
+msgctxt "@label"
+msgid "Material estimation"
+msgstr ""
+
+#: CuraHtmlDoc.py:423
+msgctxt "@text"
+msgid "Material usage"
+msgstr ""
+
+#: CuraHtmlDoc.py:434 CuraHtmlDoc.py:437
+msgctxt "@label"
+msgid "Filament Cost"
+msgstr ""
+
+#: CuraHtmlDoc.py:440
+#, python-format
+msgctxt "@text"
+msgid "%d D %d H %d Mn"
+msgstr ""
+
+#: CuraHtmlDoc.py:441
+msgctxt "@label"
+msgid "Printing Time"
+msgstr ""
+
+#: __init__.py:25
+msgctxt "@label"
+msgid "Cura Html Doc"
+msgstr ""
+
+#: qml_qt6/CuraHtmlDoc.qml:65 qml_qt5/CuraHtmlDoc.qml:63
+msgctxt "@label"
+msgid "Save As"
+msgstr ""
+
+#: qml_qt6/CuraHtmlDoc.qml:80 qml_qt5/CuraHtmlDoc.qml:78
+msgctxt "@option:check"
+msgid "Auto save"
+msgstr ""
