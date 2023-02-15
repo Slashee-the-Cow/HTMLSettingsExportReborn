@@ -54,10 +54,6 @@ Item
 		id: runOptions
 		width: childrenRect.width
 		height: childrenRect.height
-		anchors.bottom: result.top
-		
-		spacing: Math.round(UM.Theme.getSize("default_margin").width / 2)
-
 
 		Button {
 			text: catalog.i18nc("@label","Save As")
