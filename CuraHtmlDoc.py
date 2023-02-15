@@ -15,7 +15,6 @@ import tempfile
 import html
 import webbrowser
 import configparser  # The script lists are stored in metadata as serialised config files.
-import io  # To allow configparser to write to a string.
 
 from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Any, Set
@@ -561,13 +560,20 @@ class CuraHtmlDoc(Tool):
                             setting_param = ""
                             for setting_key, setting_value in settings.items():
                                 setting_param += setting_key + " : " + setting_value + "<br>"
-                            self._WriteTd(stream,script_name,setting_param)
+                            self._WriteTdNormal(stream,script_name,setting_param)
                         
         stream.write("</table>")
         stream.write("</body>")
         stream.write("</html>")
         return True
 
+    def _WriteTdNormal(self,stream,Key,ValStr):
+
+        stream.write("<tr class='normal'>")
+        stream.write("<td class='w-50'>" + Key + "</td>")
+        stream.write("<td colspan='2'>" + str(ValStr) + "</td>")
+        stream.write("</tr>\n")
+        
     def _WriteTd(self,stream,Key,ValStr):
 
         stream.write("<tr>")
