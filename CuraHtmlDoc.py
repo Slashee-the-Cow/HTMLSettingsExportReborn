@@ -542,7 +542,7 @@ class CuraHtmlDoc(Tool):
         scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
         if scripts_list :
             stream.write("<tr class='category'>")
-            stream.write("<td colspan='3'>" + catalog.i18nc("@label","Scripts") + "</td>")
+            stream.write("<td colspan='3'>" + catalog.i18nc("@label","Postprocessing Scripts") + "</td>")
             stream.write("</tr>\n")        
             for script_str in scripts_list.split("\n"):  # Encoded config files should never contain three newlines in a row. At most 2, just before section headers.
                         if not script_str:  # There were no scripts in this one (or a corrupt file caused more than 3 consecutive newlines here).
