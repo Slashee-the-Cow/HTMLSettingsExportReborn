@@ -2,7 +2,7 @@
 // CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
 // proterties values
 //   "FileFolder" : Path to file
-//   "AutoSave"	 : AutoSave
+//   "AutoSave"	  : AutoSave
 
 
 import QtQuick 6.0
@@ -58,8 +58,12 @@ Item
 		
 		spacing: Math.round(UM.Theme.getSize("default_margin").width / 2)
 
-
-		Button {
+		Cura.PrimaryButton {
+		    id: generateButton
+			anchors.centerIn: topRect
+			spacing: UM.Theme.getSize("default_margin").height
+			// width: UM.Theme.getSize("setting_control").width
+			height: UM.Theme.getSize("setting_control").height				
 			text: catalog.i18nc("@label","Save As")
 			onClicked: fileDialogSave.open()
 		}
