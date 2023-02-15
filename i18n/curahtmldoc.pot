@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-14 18:08+0000\n"
+"POT-Creation-Date: 2023-02-15 08:47+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -137,12 +137,12 @@ msgctxt "@label"
 msgid "Cura Html Doc"
 msgstr ""
 
-#: qml_qt6/CuraHtmlDoc.qml:63 qml_qt5/CuraHtmlDoc.qml:63
+#: qml_qt6/CuraHtmlDoc.qml:67 qml_qt5/CuraHtmlDoc.qml:63
 msgctxt "@label"
 msgid "Save As"
 msgstr ""
 
-#: qml_qt6/CuraHtmlDoc.qml:78 qml_qt5/CuraHtmlDoc.qml:79
+#: qml_qt6/CuraHtmlDoc.qml:82 qml_qt5/CuraHtmlDoc.qml:79
 msgctxt "@option:check"
 msgid "Auto save"
 msgstr ""
