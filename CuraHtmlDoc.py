@@ -348,7 +348,35 @@ class CuraHtmlDoc(Tool):
 
         #global_stack = machine_manager.activeMachine
         global_stack = CuraApplication.getInstance().getGlobalContainerStack()
+    
+        self._modified_param =[]
+        # modified paramater
+        for extruder in global_stack.extruderList :
+            containers = extruder.getContainers()
 
+            for container in containers:
+                # print("Containers : {}".format(container))
+                type=container.getMetaDataEntry('type')
+                if type=='user':
+                    # print("type : {}".format(container.getMetaDataEntry('type')))
+                    # print("Containers : {}".format(safeCall(container.getName)))
+                    keys = list(container.getAllKeys())
+                    for key in keys:
+                        #print("key : {}".format(key))
+                        self._modified_param.append(key)
+
+        for container in global_stack.getContainers():
+            # print("Containers : {}".format(container))
+            type=container.getMetaDataEntry('type')
+            if type=='user':
+                # print("type : {}".format(container.getMetaDataEntry('type')))
+                # print("Containers : {}".format(safeCall(container.getName)))
+                keys = list(container.getAllKeys())
+                for key in keys:
+                    #print("key : {}".format(key))
+                    self._modified_param.append(key)
+        Logger.logException("d", "Modified {}".format(self._modified_param))
+        
         TitleTxt = catalog.i18nc("@label","Print settings")
         ButtonTxt = catalog.i18nc("@action:label","Visible settings")
         ButtonTxt2 = catalog.i18nc("@action:label","Custom selection")
@@ -587,8 +615,9 @@ class CuraHtmlDoc(Tool):
         Info_Extrud=""
         definition_key=key + " label"
         ExtruderStrg = catalog.i18nc("@label", "Extruder")
-        top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
-        changed_setting_keys = top_of_stack.getAllKeys()            
+        # top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
+        # top_container = CuraApplication.getInstance().getGlobalContainerStack().getTop()
+        # changed_setting_keys = top_of_stack.getAllKeys()            
 
         if stack.getProperty(key,"type") == "category":
             stream.write("<tr class='category'>")
@@ -609,7 +638,7 @@ class CuraHtmlDoc(Tool):
             if stack.getProperty(key,"enabled") == False:
                 stream.write("<tr class='disabled'>")
             else:
-                if key in changed_setting_keys:
+                if key in self._modified_param : # changed_setting_keys:
                     stream.write("<tr class='local'>")
                 else:
                     stream.write("<tr class='normal'>")
@@ -655,8 +684,8 @@ class CuraHtmlDoc(Tool):
         Info_Extrud=""
         definition_key=key + " label"
         ExtruderStrg = catalog.i18nc("@label", "Extruder")
-        top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
-        changed_setting_keys = top_of_stack.getAllKeys()
+        # top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
+        # changed_setting_keys = top_of_stack.getAllKeys()
         
         if stack.getProperty(key,"type") == "category":
             if extrud>0:
@@ -675,7 +704,7 @@ class CuraHtmlDoc(Tool):
             if stack.getProperty(key,"enabled") == False:
                 stream.write("<tr class='disabled'>")
             else:
-                if key in changed_setting_keys:
+                if key in changed_setting_keys : #changed_setting_keys:
                     stream.write("<tr class='local'>")
                 else:
                     stream.write("<tr class='normal'>")
