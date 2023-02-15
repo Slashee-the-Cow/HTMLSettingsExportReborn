@@ -5,6 +5,7 @@
 #
 # Version 0.0.2 : simplify the source code & Save Last Folder location
 # Version 0.0.3 : test
+# Version 0.0.4 : List Postprocessing Script
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -13,6 +14,8 @@ import platform
 import tempfile
 import html
 import webbrowser
+import configparser  # The script lists are stored in metadata as serialised config files.
+import io  # To allow configparser to write to a string.
 
 from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Any, Set
@@ -520,7 +523,7 @@ class CuraHtmlDoc(Tool):
             self._doTree(extruder_stack[0],"experimental",stream,0,0)       
         
         self._doTree(extruder_stack[0],"machine_settings",stream,0,0)
-        
+
         i=0
         for Extrud in extruder_stack:
             i += 1
@@ -531,7 +534,35 @@ class CuraHtmlDoc(Tool):
         #     if global_stack.getProperty(key,"enabled") == True:
         #         if global_stack.getProperty(key,"type") == "category":
         #             self._doTree(global_stack,key,stream,0)
-
+   
+        #----------------------------------------
+        #  Add Script List in the HTML Log File
+        #----------------------------------------
+        script_list = []
+        scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
+        if scripts_list :
+            stream.write("<tr class='category'>")
+            stream.write("<td colspan='3'>" + catalog.i18nc("@label","Scripts") + "</td>")
+            stream.write("</tr>\n")        
+            for script_str in scripts_list.split("\n"):  # Encoded config files should never contain three newlines in a row. At most 2, just before section headers.
+                        if not script_str:  # There were no scripts in this one (or a corrupt file caused more than 3 consecutive newlines here).
+                            continue
+                        script_str = script_str.replace(r"\\\n", "\n").replace(r"\\\\", "\\\\")  # Unescape escape sequences.
+                        script_parser = configparser.ConfigParser(interpolation=None)
+                        script_parser.optionxform = str  # type: ignore  # Don't transform the setting keys as they are case-sensitive.
+                        try:
+                            script_parser.read_string(script_str)
+                        except configparser.Error as e:
+                            Logger.error("Stored post-processing scripts have syntax errors: {err}".format(err = str(e)))
+                            continue
+                        for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
+                            if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
+                                continue
+                            setting_param = ""
+                            for setting_key, setting_value in settings.items():
+                                setting_param += setting_key + " : " + setting_value + "<br>"
+                            self._WriteTd(stream,script_name,setting_param)
+                        
         stream.write("</table>")
         stream.write("</body>")
         stream.write("</html>")
@@ -664,7 +695,7 @@ class CuraHtmlDoc(Tool):
                     GelValStr=i18n_catalog.i18nc(definition_option, GetOptionDetail)
                     # Logger.log("d", "GetType_doTree = %s ; %s ; %s ; %s",definition_option, GelValStr, GetOption, GetOptionDetail)
                 else:
-                    GelValStr=str(GetVal)
+                    GelValStr=str(GetVal).replace(r"\n", "<br>")
                 
             stream.write("<td class='val'>" + GelValStr + "</td>")
             
