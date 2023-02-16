@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-15 19:12+0000\n"
+"POT-Creation-Date: 2023-02-16 09:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -56,83 +56,83 @@ msgctxt "@info:title"
 msgid "Warning ! Doc Html Cura"
 msgstr ""
 
-#: CuraHtmlDoc.py:380
+#: CuraHtmlDoc.py:358
 msgctxt "@label"
 msgid "Print settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:381
+#: CuraHtmlDoc.py:359
 msgctxt "@action:label"
 msgid "Visible settings"
 msgstr ""
 
-#: CuraHtmlDoc.py:382
+#: CuraHtmlDoc.py:360
 msgctxt "@action:label"
 msgid "Custom selection"
 msgstr ""
 
-#: CuraHtmlDoc.py:408
+#: CuraHtmlDoc.py:386
 msgctxt "@label"
 msgid "Job Name"
 msgstr ""
 
-#: CuraHtmlDoc.py:443
+#: CuraHtmlDoc.py:421
 msgctxt "@label"
 msgid "Intent"
 msgstr ""
 
-#: CuraHtmlDoc.py:445
+#: CuraHtmlDoc.py:423
 msgctxt "@label"
 msgid "Profile"
 msgstr ""
 
-#: CuraHtmlDoc.py:449
+#: CuraHtmlDoc.py:427
 msgctxt "@label:table_header"
 msgid "Quality"
 msgstr ""
 
-#: CuraHtmlDoc.py:461
+#: CuraHtmlDoc.py:439
 msgctxt "@label"
 msgid "Material"
 msgstr ""
 
-#: CuraHtmlDoc.py:461 CuraHtmlDoc.py:466 CuraHtmlDoc.py:617 CuraHtmlDoc.py:686
+#: CuraHtmlDoc.py:439 CuraHtmlDoc.py:444 CuraHtmlDoc.py:595 CuraHtmlDoc.py:664
 msgctxt "@label"
 msgid "Extruder"
 msgstr ""
 
-#: CuraHtmlDoc.py:466
+#: CuraHtmlDoc.py:444
 msgctxt "@label"
 msgid "Enabled"
 msgstr ""
 
-#: CuraHtmlDoc.py:475
+#: CuraHtmlDoc.py:453
 msgctxt "@label"
 msgid "Material estimation"
 msgstr ""
 
-#: CuraHtmlDoc.py:480
+#: CuraHtmlDoc.py:458
 msgctxt "@text"
 msgid "Material usage"
 msgstr ""
 
-#: CuraHtmlDoc.py:491 CuraHtmlDoc.py:494
+#: CuraHtmlDoc.py:469 CuraHtmlDoc.py:472
 msgctxt "@label"
 msgid "Filament Cost"
 msgstr ""
 
-#: CuraHtmlDoc.py:497
+#: CuraHtmlDoc.py:475
 #, python-format
 msgctxt "@text"
 msgid "%d D %d H %d Mn"
 msgstr ""
 
-#: CuraHtmlDoc.py:498
+#: CuraHtmlDoc.py:476
 msgctxt "@label"
 msgid "Printing Time"
 msgstr ""
 
-#: CuraHtmlDoc.py:572
+#: CuraHtmlDoc.py:550
 msgctxt "@label"
 msgid "Postprocessing Scripts"
 msgstr ""
