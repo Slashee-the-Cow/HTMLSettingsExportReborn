@@ -352,7 +352,7 @@ class CuraHtmlDoc(Tool):
         # modified paramater       
         top_of_stack = cast(InstanceContainer, global_stack.getTop())  # Cache for efficiency.
         self._modified_global_param = top_of_stack.getAllKeys()
-        Logger.logException("d", "Modified {}".format(self._modified_global_param))
+        # Logger.logException("d", "Modified {}".format(self._modified_global_param))
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
         ButtonTxt = catalog.i18nc("@action:label","Visible settings")
