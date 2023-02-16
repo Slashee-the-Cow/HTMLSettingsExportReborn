@@ -4,8 +4,7 @@
 #-----------------------------------------------------------------------------------------------------------
 #
 # Version 0.0.2 : simplify the source code & Save Last Folder location
-# Version 0.0.3 : test
-# Version 0.0.4 : List Postprocessing Script
+# Version 0.0.3 : List Postprocessing Script & Solved issue with modified parameter on the Global stack
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -357,7 +356,7 @@ class CuraHtmlDoc(Tool):
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
         ButtonTxt = catalog.i18nc("@action:label","Visible settings")
-        ButtonTxt2 = catalog.i18nc("@action:label","Custom selection")
+        ButtonTxt2 = catalog.i18nc("@action:label","User Modifications")
 
         stream.write("<h1>" + TitleTxt + "</h1>\n")
         stream.write("<button id='enabled'>" + ButtonTxt + "</button><P>\n")
