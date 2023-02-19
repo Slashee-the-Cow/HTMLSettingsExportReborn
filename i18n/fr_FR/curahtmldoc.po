@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Cura Html Doc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-16 09:24+0000\n"
-"PO-Revision-Date: 2023-02-16 10:27+0200\n"
+"POT-Creation-Date: 2023-02-19 17:14+0000\n"
+"PO-Revision-Date: 2023-02-19 18:21+0200\n"
 "Last-Translator: 5axes <5axes@free.fr>\n"
 "Language-Team: 5axes\n"
 "Language: fr\n"
@@ -17,7 +17,17 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Virtaal 0.7.1\n"
 
-#: CuraHtmlDoc.py:112 CuraHtmlDoc.py:285
+#: __init__.py:24 CuraHtmlDoc.py:161
+msgctxt "@label"
+msgid "CuraHtmlDoc"
+msgstr "DocHtmlCura"
+
+#: __init__.py:25
+msgctxt "@label"
+msgid "Cura Html Doc"
+msgstr "Doc Html Cura"
+
+#: CuraHtmlDoc.py:114 CuraHtmlDoc.py:287
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -27,17 +37,12 @@ msgstr ""
 "Le chemin d'enregistrement défini sur : \n"
 " %s"
 
-#: CuraHtmlDoc.py:112 CuraHtmlDoc.py:253 CuraHtmlDoc.py:285
+#: CuraHtmlDoc.py:114 CuraHtmlDoc.py:255 CuraHtmlDoc.py:287
 msgctxt "@title"
 msgid "Cura Html Doc"
 msgstr "Doc Html Cura"
 
-#: CuraHtmlDoc.py:159 __init__.py:24
-msgctxt "@label"
-msgid "CuraHtmlDoc"
-msgstr "DocHtmlCura"
-
-#: CuraHtmlDoc.py:253
+#: CuraHtmlDoc.py:255
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -47,7 +52,7 @@ msgstr ""
 "Le document a été sauvegardé avec succès : \n"
 " %s"
 
-#: CuraHtmlDoc.py:314
+#: CuraHtmlDoc.py:316
 #, python-format
 msgctxt "@message"
 msgid ""
@@ -57,96 +62,96 @@ msgstr ""
 "Navigateur par défaut non défini ouvrir : \n"
 " %s"
 
-#: CuraHtmlDoc.py:314
+#: CuraHtmlDoc.py:316
 msgctxt "@info:title"
 msgid "Warning ! Doc Html Cura"
 msgstr "Attention ! Doc Html Cura"
 
-#: CuraHtmlDoc.py:357
+#: CuraHtmlDoc.py:361
 msgctxt "@label"
 msgid "Print settings"
 msgstr "Paramètres d'impression"
 
-#: CuraHtmlDoc.py:358
+#: CuraHtmlDoc.py:362
 msgctxt "@action:label"
-msgid "Visible settings"
-msgstr "Paramètres visibles"
+msgid "Enable Settings"
+msgstr "Masquer/Afficher Paramètres Valides"
 
-#: CuraHtmlDoc.py:359
+#: CuraHtmlDoc.py:363
 msgctxt "@action:label"
 msgid "User Modifications"
-msgstr "Modifications Utilisateur"
+msgstr "Masquer/Afficher Modifications Utilisateur"
 
-#: CuraHtmlDoc.py:385
+#: CuraHtmlDoc.py:364
+msgctxt "@action:label"
+msgid "Visible Settings"
+msgstr "Masquer/Afficher Paramètres Visibles"
+
+#: CuraHtmlDoc.py:396
 msgctxt "@label"
 msgid "Job Name"
 msgstr "Nom du Projet"
 
-#: CuraHtmlDoc.py:420
+#: CuraHtmlDoc.py:431
 msgctxt "@label"
 msgid "Intent"
 msgstr "Usage"
 
-#: CuraHtmlDoc.py:422
+#: CuraHtmlDoc.py:433
 msgctxt "@label"
 msgid "Profile"
 msgstr "Profil"
 
-#: CuraHtmlDoc.py:426
+#: CuraHtmlDoc.py:437
 msgctxt "@label:table_header"
 msgid "Quality"
 msgstr "Qualité"
 
-#: CuraHtmlDoc.py:438
+#: CuraHtmlDoc.py:449
 msgctxt "@label"
 msgid "Material"
 msgstr "Matériau"
 
-#: CuraHtmlDoc.py:438 CuraHtmlDoc.py:443 CuraHtmlDoc.py:594 CuraHtmlDoc.py:663
+#: CuraHtmlDoc.py:449 CuraHtmlDoc.py:454 CuraHtmlDoc.py:605 CuraHtmlDoc.py:678
 msgctxt "@label"
 msgid "Extruder"
 msgstr "Extrudeuse"
 
-#: CuraHtmlDoc.py:443
+#: CuraHtmlDoc.py:454
 msgctxt "@label"
 msgid "Enabled"
 msgstr "Activer"
 
-#: CuraHtmlDoc.py:452
+#: CuraHtmlDoc.py:463
 msgctxt "@label"
 msgid "Material estimation"
 msgstr "Estimation matière"
 
-#: CuraHtmlDoc.py:457
+#: CuraHtmlDoc.py:468
 msgctxt "@text"
 msgid "Material usage"
 msgstr "Utilisation matériaux"
 
-#: CuraHtmlDoc.py:468 CuraHtmlDoc.py:471
+#: CuraHtmlDoc.py:479 CuraHtmlDoc.py:482
 msgctxt "@label"
 msgid "Filament Cost"
 msgstr "Coût du filament"
 
-#: CuraHtmlDoc.py:474
+#: CuraHtmlDoc.py:485
 #, python-format
 msgctxt "@text"
 msgid "%d D %d H %d Mn"
 msgstr "%d J %d H %d Mn"
 
-#: CuraHtmlDoc.py:475
+#: CuraHtmlDoc.py:486
 msgctxt "@label"
 msgid "Printing Time"
 msgstr "Temps d'impression"
 
-#: CuraHtmlDoc.py:549
+#: CuraHtmlDoc.py:560
 msgctxt "@label"
 msgid "Postprocessing Scripts"
 msgstr "Scripts de post-traitement"
-
-#: __init__.py:25
-msgctxt "@label"
-msgid "Cura Html Doc"
-msgstr "Doc Html Cura"
 
 #: qml_qt6/CuraHtmlDoc.qml:64 qml_qt5/CuraHtmlDoc.qml:59
 msgctxt "@label"
@@ -157,6 +162,10 @@ msgstr "Enregistrer Sous"
 msgctxt "@option:check"
 msgid "Auto save"
 msgstr "Sauvegarde Auto"
+
+#~ msgctxt "@action:label"
+#~ msgid "Visible settings"
+#~ msgstr "Paramètres visibles"
 
 #~ msgctxt "@action:label"
 #~ msgid "Custom selection"
