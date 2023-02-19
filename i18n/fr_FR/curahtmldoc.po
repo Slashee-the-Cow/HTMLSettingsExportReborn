@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Cura Html Doc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-19 17:14+0000\n"
-"PO-Revision-Date: 2023-02-19 19:29+0200\n"
+"POT-Creation-Date: 2023-02-19 19:44+0000\n"
+"PO-Revision-Date: 2023-02-19 20:46+0200\n"
 "Last-Translator: 5axes <5axes@free.fr>\n"
 "Language-Team: 5axes\n"
 "Language: fr\n"
@@ -74,17 +74,17 @@ msgstr "Paramètres d'impression"
 
 #: CuraHtmlDoc.py:362
 msgctxt "@action:label"
-msgid "Enable Settings"
+msgid "Show/Hide Parameter Enable"
 msgstr "Masquer/Afficher Paramètres Valides"
 
 #: CuraHtmlDoc.py:363
 msgctxt "@action:label"
-msgid "User Modifications"
-msgstr "Masquer/Afficher Modifications Utilisateur"
+msgid "Show/Hide Parameter Standard"
+msgstr "Masquer/Afficher Paramètres Standards"
 
 #: CuraHtmlDoc.py:364
 msgctxt "@action:label"
-msgid "Visible Settings"
+msgid "Show/Hide Parameter Visible"
 msgstr "Masquer/Afficher Paramètres Visibles"
 
 #: CuraHtmlDoc.py:396
@@ -163,14 +163,3 @@ msgctxt "@option:check"
 msgid "Auto save"
 msgstr "Sauvegarde Auto"
 
-#~ msgctxt "@action:label"
-#~ msgid "Visible settings"
-#~ msgstr "Paramètres visibles"
-
-#~ msgctxt "@action:label"
-#~ msgid "Custom selection"
-#~ msgstr "Sélection personnalisée"
-
-#~ msgctxt "@label"
-#~ msgid "%d D %d H %d Mn"
-#~ msgstr "%d J %d H %d Mn"

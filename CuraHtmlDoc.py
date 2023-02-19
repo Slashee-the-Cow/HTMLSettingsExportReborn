@@ -328,7 +328,7 @@ class CuraHtmlDoc(Tool):
                     tr.category td { font-size: 1.1em; background-color: rgb(142,170,219); }
                     tr.disabled td { background-color: #eaeaea; color: #717171; }
                     tr.local td { background-color: #77DD77; }
-                    tr.visible td { background-color: #FDFFDA; }
+                    tr.visible td { background-color: #FFEE92; }
                     body.hide-disabled tr.disabled { display: none; }
                     body.hide-local tr.visible { display: none; }
                     body.hide-visible tr.normal { display: none; }
