@@ -5,6 +5,7 @@
 #
 # Version 0.0.2 : simplify the source code & Save Last Folder location
 # Version 0.0.3 : List Postprocessing Script & Solved issue with modified parameter on the Global stack
+# Version 0.0.4 : Add Button Visible Element
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -33,6 +34,7 @@ from cura.CuraVersion import CuraVersion  # type: ignore
 from cura.Utils.Threading import call_on_qt_thread
 from cura.Snapshot import Snapshot
 
+from UM.Settings.Models.SettingPreferenceVisibilityHandler import SettingPreferenceVisibilityHandler
 from UM.Application import Application
 from UM.Tool import Tool
 from UM.Event import Event
@@ -326,8 +328,10 @@ class CuraHtmlDoc(Tool):
                     tr.category td { font-size: 1.1em; background-color: rgb(142,170,219); }
                     tr.disabled td { background-color: #eaeaea; color: #717171; }
                     tr.local td { background-color: #77DD77; }
+                    tr.visible td { background-color: #FDFFDA; }
                     body.hide-disabled tr.disabled { display: none; }
                     body.hide-local tr.normal { display: none; }
+                    body.hide-visible tr.visible { display: none; }
                     .val { width: 200px; text-align: right; }
                     .w-10 { width: 10%; }
                     .w-50 { width: 50%; }
@@ -355,12 +359,14 @@ class CuraHtmlDoc(Tool):
         # Logger.logException("d", "Modified {}".format(self._modified_global_param))
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
-        ButtonTxt = catalog.i18nc("@action:label","Visible settings")
+        ButtonTxt = catalog.i18nc("@action:label","Enable Settings")
         ButtonTxt2 = catalog.i18nc("@action:label","User Modifications")
+        ButtonTxt3 = catalog.i18nc("@action:label","Visible Settings")
 
         stream.write("<h1>" + TitleTxt + "</h1>\n")
         stream.write("<button id='enabled'>" + ButtonTxt + "</button><P>\n")
         stream.write("<button id='local'>" + ButtonTxt2 + "</button><P>\n")
+        stream.write("<button id='visible'>" + ButtonTxt3 + "</button><P>\n")
 
         # Script       
         stream.write("""<script>
@@ -375,7 +381,12 @@ class CuraHtmlDoc(Tool):
                                 document.body.classList.toggle('hide-local');
                             });
                         </script>\n""")
-                        
+        stream.write("""<script>
+                            var visible = document.getElementById('visible');
+                            visible.addEventListener('click', function() {
+                                document.body.classList.toggle('hide-visible');
+                            });
+                        </script>\n""")                        
         #Get extruder count
         extruder_count=stack.getProperty("machine_extruder_count", "value")
         print_information = CuraApplication.getInstance().getPrintInformation()
@@ -594,7 +605,8 @@ class CuraHtmlDoc(Tool):
         ExtruderStrg = catalog.i18nc("@label", "Extruder")
         top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
         top_container = CuraApplication.getInstance().getGlobalContainerStack().getTop()
-        changed_setting_keys = top_of_stack.getAllKeys()            
+        changed_setting_keys = top_of_stack.getAllKeys() 
+        self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()      
         
         if stack.getProperty(key,"type") == "category":
             stream.write("<tr class='category'>")
@@ -618,7 +630,10 @@ class CuraHtmlDoc(Tool):
                 if key in self._modified_global_param or key in changed_setting_keys : # changed_setting_keys:
                     stream.write("<tr class='local'>")
                 else:
-                    stream.write("<tr class='normal'>")
+                    if key in self._visible_settings :
+                        stream.write("<tr class='visible'>")
+                    else :
+                        stream.write("<tr class='normal'>")
             
             # untranslated_label=stack.getProperty(key,"label").capitalize()
             untranslated_label=stack.getProperty(key,"label")           
@@ -684,7 +699,10 @@ class CuraHtmlDoc(Tool):
                 if key in self._modified_global_param or key in changed_setting_keys : #changed_setting_keys:
                     stream.write("<tr class='local'>")
                 else:
-                    stream.write("<tr class='normal'>")
+                    if key in self._visible_settings :
+                        stream.write("<tr class='visible'>")
+                    else :
+                        stream.write("<tr class='normal'>")
             
             # untranslated_label=stack.getProperty(key,"label").capitalize()
             untranslated_label=stack.getProperty(key,"label")           
