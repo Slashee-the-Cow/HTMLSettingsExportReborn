@@ -330,8 +330,8 @@ class CuraHtmlDoc(Tool):
                     tr.local td { background-color: #77DD77; }
                     tr.visible td { background-color: #FDFFDA; }
                     body.hide-disabled tr.disabled { display: none; }
-                    body.hide-local tr.normal { display: none; }
-                    body.hide-visible tr.visible { display: none; }
+                    body.hide-local tr.visible { display: none; }
+                    body.hide-visible tr.normal { display: none; }
                     .val { width: 200px; text-align: right; }
                     .w-10 { width: 10%; }
                     .w-50 { width: 50%; }
@@ -359,10 +359,10 @@ class CuraHtmlDoc(Tool):
         # Logger.logException("d", "Modified {}".format(self._modified_global_param))
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
-        ButtonTxt_Enable = catalog.i18nc("@action:label","Enable Settings")
-        ButtonTxt_Modi = catalog.i18nc("@action:label","User Modifications")
-        ButtonTxt_Visible = catalog.i18nc("@action:label","Visible Settings")
-
+        ButtonTxt_Enable = catalog.i18nc("@action:label","Show/Hide Parameter Enable")
+        ButtonTxt_Visible = catalog.i18nc("@action:label","Show/Hide Parameter Standard")
+        ButtonTxt_Modi = catalog.i18nc("@action:label","Show/Hide Parameter Visible")
+        
         stream.write("<h1>" + TitleTxt + "</h1>\n")
         stream.write("<button id='enabled'>" + ButtonTxt_Enable + "</button><P>\n")
         stream.write("<button id='visible'>" + ButtonTxt_Visible + "</button><P>\n")
