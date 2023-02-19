@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-19 18:30+0000\n"
+"POT-Creation-Date: 2023-02-19 19:44+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,17 +68,17 @@ msgstr ""
 
 #: CuraHtmlDoc.py:362
 msgctxt "@action:label"
-msgid "Enable Settings"
+msgid "Show/Hide Parameter Enable"
 msgstr ""
 
 #: CuraHtmlDoc.py:363
 msgctxt "@action:label"
-msgid "User Modifications"
+msgid "Show/Hide Parameter Standard"
 msgstr ""
 
 #: CuraHtmlDoc.py:364
 msgctxt "@action:label"
-msgid "Visible Settings"
+msgid "Show/Hide Parameter Visible"
 msgstr ""
 
 #: CuraHtmlDoc.py:396
