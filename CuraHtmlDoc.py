@@ -359,14 +359,14 @@ class CuraHtmlDoc(Tool):
         # Logger.logException("d", "Modified {}".format(self._modified_global_param))
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
-        ButtonTxt = catalog.i18nc("@action:label","Enable Settings")
-        ButtonTxt2 = catalog.i18nc("@action:label","User Modifications")
-        ButtonTxt3 = catalog.i18nc("@action:label","Visible Settings")
+        ButtonTxt_Enable = catalog.i18nc("@action:label","Enable Settings")
+        ButtonTxt_Modi = catalog.i18nc("@action:label","User Modifications")
+        ButtonTxt_Visible = catalog.i18nc("@action:label","Visible Settings")
 
         stream.write("<h1>" + TitleTxt + "</h1>\n")
-        stream.write("<button id='enabled'>" + ButtonTxt + "</button><P>\n")
-        stream.write("<button id='local'>" + ButtonTxt2 + "</button><P>\n")
-        stream.write("<button id='visible'>" + ButtonTxt3 + "</button><P>\n")
+        stream.write("<button id='enabled'>" + ButtonTxt_Enable + "</button><P>\n")
+        stream.write("<button id='visible'>" + ButtonTxt_Visible + "</button><P>\n")
+        stream.write("<button id='local'>" + ButtonTxt_Modi + "</button><P>\n")
 
         # Script       
         stream.write("""<script>
