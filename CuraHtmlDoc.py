@@ -6,6 +6,7 @@
 # Version 0.0.2 : simplify the source code & Save Last Folder location
 # Version 0.0.3 : List Postprocessing Script & Solved issue with modified parameter on the Global stack
 # Version 0.0.4 : Add Button Visible Element
+# Version 0.0.5 : Display Error
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -325,6 +326,7 @@ class CuraHtmlDoc(Tool):
             <head>
                 <title>Cura Settings Export</title>
                 <style>
+                    div.error { background-color: red; }
                     tr.category td { font-size: 1.1em; background-color: rgb(142,170,219); }
                     tr.disabled td { background-color: #eaeaea; color: #717171; }
                     tr.local td { background-color: #77DD77; }
@@ -647,6 +649,15 @@ class CuraHtmlDoc(Tool):
             if str(GetType)=='float':
                 # GelValStr="{:.2f}".format(GetVal).replace(".00", "")  # Formatage
                 GelValStr="{:.4f}".format(GetVal).rstrip("0").rstrip(".") # Formatage thanks to r_moeller
+                try:
+                    minimum_value=float(stack.getProperty(key,"minimum_value"))
+                    maximum_value=float(stack.getProperty(key,"maximum_value"))
+                    
+                    if GetVal > maximum_value or GetVal < minimum_value :
+                        Logger.log("d", "Error = {} ; {} ; {}".format(GetVal,minimum_value,maximum_value))
+                        GelValStr="<div class='error'>{:.4f}".format(GetVal).rstrip("0").rstrip(".")+"</div>" # Formatage thanks to r_moeller
+                except:
+                    pass 
             else:
                 # enum = Option list
                 if str(GetType)=='enum':
@@ -714,7 +725,18 @@ class CuraHtmlDoc(Tool):
             GetVal=stack.getProperty(key,"value")
             if str(GetType)=='float':
                 # GelValStr="{:.2f}".format(GetVal).replace(".00", "")  # Formatage
+                    
                 GelValStr="{:.4f}".format(GetVal).rstrip("0").rstrip(".") # Formatage thanks to r_moeller
+                try:
+                    minimum_value=float(stack.getProperty(key,"minimum_value"))
+                    maximum_value=float(stack.getProperty(key,"maximum_value"))
+                    
+                    if GetVal > maximum_value or GetVal < minimum_value :
+                        Logger.log("d", "Error = {} ; {} ; {}".format(GetVal,minimum_value,maximum_value))
+                        GelValStr="<div class='error'>{:.4f}".format(GetVal).rstrip("0").rstrip(".")+"</div>" # Formatage thanks to r_moeller
+                except:
+                    pass               
+
             else:
                 # enum = Option list
                 if str(GetType)=='enum':
