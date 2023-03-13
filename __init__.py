@@ -15,9 +15,9 @@ i18n_catalog = i18nCatalog("curahtmldoc")
 def getMetaData():
 
     if not VERSION_QT5:
-        QmlFile="qml_qt6/CuraHtmlDoc.qml"
+        QmlFile="qml/qml_qt6/CuraHtmlDoc.qml"
     else:
-        QmlFile="qml_qt5/CuraHtmlDoc.qml"
+        QmlFile="qml/qml_qt5/CuraHtmlDoc.qml"
         
     return {
         "tool": {

@@ -7,6 +7,7 @@
 # Version 0.0.3 : List Postprocessing Script & Solved issue with modified parameter on the Global stack
 # Version 0.0.4 : Add Button Visible Element
 # Version 0.0.5 : Display Error
+# Version 0.0.6 : change qml & i18n location
 #-----------------------------------------------------------------------------------------------------------
 
 import os
@@ -56,7 +57,7 @@ i18n_extrud_catalog = i18nCatalog("fdmextruder.def.json")
 encode = html.escape
 
 Resources.addSearchPath(
-    os.path.join(os.path.abspath(os.path.dirname(__file__)))
+    os.path.join(os.path.abspath(os.path.dirname(__file__)),'resources')
 )  # Plugin translation file import
 
 catalog = i18nCatalog("curahtmldoc")
