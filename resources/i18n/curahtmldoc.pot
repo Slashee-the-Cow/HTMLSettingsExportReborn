@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CuraHtmlDoc\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-05-02 12:09+0000\n"
+"POT-Creation-Date: 2024-09-29 20:40+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,16 +16,6 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
-
-#: __init__.py:24 CuraHtmlDoc.py:163
-msgctxt "@label"
-msgid "CuraHtmlDoc"
-msgstr ""
-
-#: __init__.py:25
-msgctxt "@label"
-msgid "Cura Html Doc"
-msgstr ""
 
 #: CuraHtmlDoc.py:116 CuraHtmlDoc.py:289
 #, python-format
@@ -38,6 +28,11 @@ msgstr ""
 #: CuraHtmlDoc.py:116 CuraHtmlDoc.py:257 CuraHtmlDoc.py:289
 msgctxt "@title"
 msgid "Cura Html Doc"
+msgstr ""
+
+#: CuraHtmlDoc.py:163 __init__.py:24
+msgctxt "@label"
+msgid "CuraHtmlDoc"
 msgstr ""
 
 #: CuraHtmlDoc.py:257
@@ -147,14 +142,19 @@ msgctxt "@label"
 msgid "Postprocessing Scripts"
 msgstr ""
 
-#: qml_qt5/CuraHtmlDoc.qml:59 qml/qml_qt5/CuraHtmlDoc.qml:59
-#: qml/qml_qt6/CuraHtmlDoc.qml:64 qml_qt6/CuraHtmlDoc.qml:64
+#: __init__.py:25
+msgctxt "@label"
+msgid "Cura Html Doc"
+msgstr ""
+
+#: qml/qml_qt6/CuraHtmlDoc.qml:64 qml/qml_qt5/CuraHtmlDoc.qml:59
+#: qml_qt6/CuraHtmlDoc.qml:64 qml_qt5/CuraHtmlDoc.qml:59
 msgctxt "@label"
 msgid "Save As"
 msgstr ""
 
-#: qml_qt5/CuraHtmlDoc.qml:75 qml/qml_qt5/CuraHtmlDoc.qml:75
-#: qml/qml_qt6/CuraHtmlDoc.qml:79 qml_qt6/CuraHtmlDoc.qml:79
+#: qml/qml_qt6/CuraHtmlDoc.qml:79 qml/qml_qt5/CuraHtmlDoc.qml:75
+#: qml_qt6/CuraHtmlDoc.qml:79 qml_qt5/CuraHtmlDoc.qml:75
 msgctxt "@option:check"
 msgid "Auto save"
 msgstr ""
