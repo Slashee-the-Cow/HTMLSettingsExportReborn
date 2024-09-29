@@ -37,7 +37,7 @@ Item
 
 		// On Linux, a forward slash needs to be prepended to the resulting path
 		// I'm guessing this is needed on Mac OS, as well, but can't test it
-		if (Cura.os == "linux" || Cura.os == "darwin") path = "/" + path
+		if (Qt.platform.os === "linux" || Qt.platform.os === "osx" || Qt.platform.os === "unix") path = "/" + path
 		
 		// Return the resulting path
 		return path
