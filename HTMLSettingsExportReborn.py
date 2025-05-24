@@ -1,17 +1,29 @@
-#-----------------------------------------------------------------------------------------------------------
-# Copyright (c) 2023 5@xes
-# CuraHtmlDoc is released under the terms of the AGPLv3 or higher.
-#-----------------------------------------------------------------------------------------------------------
+# HTML Settings Export Reborn
+# Copyright Slashee the Cow 2025-
 #
-# Version 0.0.2 : simplify the source code & Save Last Folder location
-# Version 0.0.3 : List Postprocessing Script & Solved issue with modified parameter on the Global stack
-# Version 0.0.4 : Add Button Visible Element
-# Version 0.0.5 : Display Error
-# Version 0.0.6 : change qml & i18n location
-#-----------------------------------------------------------------------------------------------------------
+# Based on CuraHtmlDoc by 5@xes
+# https://github.com/5axes/CuraHtmlDoc/
+#--------------------------------------------------------------------------------------------------
+# Version history (Reborn edition)
+# v1.0.0:
+#   - Made it an Extension instead of a Tool. Menu option seems much more logical than tool button.
+#   - ^^^ meant I could ditch **a bunch** of Tool related stuff which I don't even know why some of it was apparently necessary.
+#   - **Extensive** refactoring. Like a "knock all the walls down and start over" kind of renovation.
+#   - This remodelling includes removing oodles of duplicate code. While it's fine if your house has two bathrooms and you renovate it to have two bathrooms, that doesn't apply to code.
+#   - What little Qt is in here, dropped Qt 5 support because I have enough on my hands as it is. This makes Cura 5.0 a minimum.
+#   - Removed autosave setting. Generating this is a somewhat fragile process and I really don't want to get in the way of gcode saving.
+#   - Cleaned up CSS, removing unused classes. Fixed a group that was numbered "l, 2, 3, 4, 5" (look carefully at the first one).
+#   - HTML output is now generated in advance and written all at once instead of literally thousands of individual writes over time locking up file I/O and the GIL.
+#   - Large chunks of HTML now loaded from individual files instead of ungainly string literals.
+#   - Added symbols (in addition to the padding) to more clearly indicate parent/child relationships.
+#   - Output HTML markup now much more clean with things like indents and new lines. And being valid.
+#   - Generated HTML now consistently follows HTML5 standards instead of using deprecated elements and having traces of XHTML.
+#   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are..
+#   - Date/time practically guaranteed to be in system locale's format instead of hard coded.
 
 import os
-import time
+import datetime
+import locale
 import platform
 import tempfile
 import html
@@ -21,14 +33,8 @@ import configparser  # The script lists are stored in metadata as serialised con
 from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Any, Set
 
-VERSION_QT5 = False
-try:
-    from PyQt6.QtCore import Qt, QObject, QBuffer, QUrl
-    from PyQt6.QtGui import QDesktopServices
-except ImportError:
-    from PyQt5.QtCore import Qt, QObject, QBuffer, QUrl
-    from PyQt5.QtGui import QDesktopServices
-    VERSION_QT5 = True
+from PyQt6.QtCore import Qt, QObject, QBuffer, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 
 from cura.CuraApplication import CuraApplication
@@ -36,10 +42,9 @@ from cura.CuraVersion import CuraVersion  # type: ignore
 from cura.Utils.Threading import call_on_qt_thread
 from cura.Snapshot import Snapshot
 
+from UM.Extension import Extension
 from UM.Settings.Models.SettingPreferenceVisibilityHandler import SettingPreferenceVisibilityHandler
 from UM.Application import Application
-from UM.Tool import Tool
-from UM.Event import Event
 from UM.Logger import Logger
 from UM.Message import Message
 from UM.Scene.Selection import Selection
@@ -51,232 +56,57 @@ from UM.Resources import Resources
 from UM.i18n import i18nCatalog
 
 i18n_cura_catalog = i18nCatalog("cura")
-i18n_catalog = i18nCatalog("fdmprinter.def.json")
-i18n_extrud_catalog = i18nCatalog("fdmextruder.def.json")
-
-encode = html.escape
+i18n_printer_catalog = i18nCatalog("fdmprinter.def.json")
+i18n_extruder_catalog = i18nCatalog("fdmextruder.def.json")
 
 Resources.addSearchPath(
     os.path.join(os.path.abspath(os.path.dirname(__file__)),'resources')
 )  # Plugin translation file import
 
-catalog = i18nCatalog("curahtmldoc")
+catalog = i18nCatalog("htmlsettingsexport")
 
 if catalog.hasTranslationLoaded():
-    Logger.log("i", "Cura Html Doc Plugin translation loaded!")
+    Logger.log("i", "HTML Settings Export translation loaded")
+
+def indent(string: str, level: int = 0) -> str:
+    return f'{"    " * level}{string}'
     
-class CuraHtmlDoc(Tool):
+class HTMLSettingsExportReborn(Extension):
+
+    HTML_REPLACEMENT_TITLE: str = "$$$TITLE$$$"
+    HTML_REPLACEMENT_LANG: str = "$$$LANG$$$"
+    HTML_REPLACEMENT_UNUSED_SETTINGS: str = "$$$UNUSED_SETTINGS$$$"
+    HTML_REPLACEMENT_VISIBLE_SETTINGS: str = "$$$VISIBLE_SETTINGS$$$"
+    HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS: str = "$$$LOCAL_CHANGE_SETTINGS$$$"
+    
     def __init__(self):
         super().__init__()
 
-        self._filefolder = ""
-        self._auto_save = False
-
-        self.Major=1
-        self.Minor=0
-
-        # Logger.log('d', "Info Version CuraVersion --> " + str(Version(CuraVersion)))
-        Logger.log('d', "Info CuraVersion --> " + str(CuraVersion))
-        
-        # Test version for Cura Master
-        # https://github.com/smartavionics/Cura
-        if "master" in CuraVersion :
-            self.Major=4
-            self.Minor=20
-        else:
-            try:
-                self.Major = int(CuraVersion.split(".")[0])
-                self.Minor = int(CuraVersion.split(".")[1])
-            except:
-                pass
-                
-        self._toolbutton_item = None  # type: Optional[QObject]
-        self._tool_enabled = False
-
-        self._doc_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc", "Sample.html")
-        self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
-        
         self._application = CuraApplication.getInstance()
-        self._controller = self.getController()
-        
-        self.setExposedProperties("FileFolder", "AutoSave")
 
         self._preferences = self._application.getPreferences()
-        # auto_save
-        self._preferences.addPreference("CuraHtmlDoc/auto_save", False)
-        self._auto_save = bool(self._preferences.getValue("CuraHtmlDoc/auto_save"))        
 
-        # filefolder
-        self._preferences.addPreference("CuraHtmlDoc/folder", False)
-        self._filefolder = self._preferences.getValue("CuraHtmlDoc/folder")   
+        self._modified_global_parameters: list = []
 
-        # Folder Doesn't Exist
-        if not os.path.isdir(self._filefolder) : 
-            self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
-            Message(text = catalog.i18nc("@message","Save path set to : \n %s") % self._filefolder, title = catalog.i18nc("@title", "Cura Html Doc")).show()
-            self._preferences.setValue("CuraHtmlDoc/folder", self._filefolder)
-                    
-        # Before to Exit
-        self._application.getOnExitCallbackManager().addCallback(self._onExitCallback)        
-
-        # Part of code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
-        self._application.engineCreatedSignal.connect(self._onEngineCreated)
-        Selection.selectionChanged.connect(self._onSelectionChanged)
-        self._controller.activeStageChanged.connect(self._onActiveStageChanged)
-        self._controller.activeToolChanged.connect(self._onActiveToolChanged)
-        
-        self._application.getOutputDeviceManager().writeStarted.connect(self._onWriteStarted)
-        
-        self._selection_tool = None  # type: Optional[Tool]    
-        
-    # -------------------------------------------------------------------------------------------------------------
-    # Origin of this code for forceToolEnabled Copyright (c) 2022 Aldo Hoeben / fieldOfView ( Source MeasureTool )
-    # def _onSelectionChanged
-    # def _onActiveStageChanged
-    # def _onActiveToolChanged
-    # def _findToolbarIcon
-    # def _forceToolEnabled
-    # -------------------------------------------------------------------------------------------------------------
-    def _onSelectionChanged(self) -> None:
-        if not self._toolbutton_item:
-            return
-        self._application.callLater(lambda: self._forceToolEnabled())
-
-    def _onActiveStageChanged(self) -> None:
-        ActiveStage = self._controller.getActiveStage().stageId
-        self._tool_enabled = ActiveStage == "PrepareStage" or ActiveStage == "PreviewStage"
-        if not self._tool_enabled:
-            self._controller.setSelectionTool(self._selection_tool or "SelectionTool")
-            self._selection_tool = None
-            if self._controller.getActiveTool() == self:
-                self._controller.setActiveTool(self._getNoneTool())
-        self._forceToolEnabled()
-
-    def _onActiveToolChanged(self) -> None:
-        if self._controller.getActiveTool() != self:
-            self._controller.setSelectionTool(self._selection_tool or "SelectionTool")
-            self._selection_tool = None
-
-    def _findToolbarIcon(self, rootItem: QObject) -> Optional[QObject]:
-        for child in rootItem.childItems():
-            class_name = child.metaObject().className()
-            if class_name.startswith("ToolbarButton_QMLTYPE") and child.property("text") == catalog.i18nc("@label", "CuraHtmlDoc"):
-                return child
-            elif (
-                class_name.startswith("QQuickItem")
-                or class_name.startswith("QQuickColumn")
-                or class_name.startswith("Toolbar_QMLTYPE")
-            ):
-                found = self._findToolbarIcon(child)
-                if found:
-                    return found
-        return None
-        
-    def _forceToolEnabled(self, passive=False) -> None:
-        if not self._toolbutton_item:
-            return
+ 
+    def _has_browser(self):
         try:
-            if self._tool_enabled:
-                self._toolbutton_item.setProperty("enabled", True)
-                if self._application._previous_active_tool == "CuraHtmlDoc" and not passive:
-                    self._controller.setActiveTool(self._application._previous_active_tool)
-            else:
-                self._toolbutton_item.setProperty("enabled", False)
-                if self._controller.getActiveTool() == self and not passive:
-                    self._controller.setActiveTool(self._getNoneTool())
-        except RuntimeError:
-            Logger.log("w", "The toolbutton item seems to have gone missing; trying to find it back.")
-            main_window = self._application.getMainWindow()
-            if not main_window:
-                return
-
-            self._toolbutton_item = self._findToolbarIcon(main_window.contentItem())
+            webbrowser.get()
+            return True
+        except webbrowser.Error:
+            return False
+        
+    def _openHtmlPage(self,page_name):
+        # target = os.path.join(tempfile.gettempdir(), page_name)
+        with open(page_name, 'w', encoding='utf-8') as fhandle:
+            self._write(fhandle)
             
-    def _onEngineCreated(self) -> None:
-        main_window = self._application.getMainWindow()
-        if not main_window:
-            return
+        if not self._has_browser() :
+            Logger.log("d", "openHtmlPage default browser not defined") 
+            Message(text = catalog.i18nc("@message","Default browser not defined open \n %s") % (page_name), title = catalog.i18nc("@info:title", "Warning ! Doc Html Cura")).show()
             
-        self._toolbutton_item = self._findToolbarIcon(main_window.contentItem())
-        self._forceToolEnabled()
-
-    def event(self, event: Event) -> bool:
-        result = super().event(event)
-
-        if not self._tool_enabled:
-            return result
-
-        # overridden from ToolHandle.event(), because we also want to show the handle when there is no selection
-        # disabling the tool oon Event.ToolDeactivateEvent is properly handled in ToolHandle.event()
-        if event.type == Event.ToolActivateEvent:
-            if self._handle:
-                self._handle.setParent(self.getController().getScene().getRoot())
-                self._handle.setEnabled(True)
-
-            self._selection_tool = self._controller._selection_tool
-            self._controller.setSelectionTool(None)
-
-            self._application.callLater(lambda: self._forceToolEnabled(passive=True))
-
-        if event.type == Event.ToolDeactivateEvent:
-            self._controller.setSelectionTool(self._selection_tool or "SelectionTool")
-            self._selection_tool = None
-
-            self._application.callLater(lambda: self._forceToolEnabled(passive=True))
-
-        if self._selection_tool:
-            self._selection_tool.event(event)
-
-        return result
-    # -------------------------------------------------------------------------------------------------------------
-    def _onExitCallback(self)->None:
-        ''' Called as Cura is closing to ensure that the Html Doc file were saved before exiting 
-            Code must be change in a futur release not decided what to do here exactly V0.0.2   
-        '''
-        # Save the Html file 
-        try:
-            Logger.log("d", "onExitCallback")
-        except:
-            pass
+        QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))
         
-        self._application.triggerNextExitCheck()        
-        
-    def getFileFolder(self) -> str:
-        # Logger.log("d", "File folder {}".format(self._filefolder))
-        return self._filefolder
-
-    def setFileFolder(self, value: str) -> None:
-        self._doc_file = value        
-        # Save and Open the HTML file
-        self._openHtmlPage(self._doc_file)
-        # with open(str(value), "wt") as stream:
-        #     self._write(stream)
-        self._filefolder = os.path.dirname(self._doc_file)
-        self._preferences.setValue("CuraHtmlDoc/folder", self._filefolder)
-        Logger.log("w", "Filefolder set to {}".format(self._filefolder))
-        Message(text = catalog.i18nc("@message","Doc succesfully Saved : \n %s") % value, title = catalog.i18nc("@title", "Cura Html Doc")).show()
-
-    def getAutoSave(self )-> bool:
-        return self._auto_save
-
-    def setAutoSave(self, value: bool) -> None:
-        # Logger.log("w", "SetAutoSave {}".format(value))
-        self._auto_save = value
-        self.propertyChanged.emit()
-        self._preferences.setValue("CuraHtmlDoc/auto_save", self._auto_save)
-
-    def _getFallbackTool(self) -> str:
-        try:
-            return self._controller._fallback_tool
-        except AttributeError:
-            return "TranslateTool"
-
-    def _getNoneTool(self) -> str:
-        try:
-            return self._controller._fallback_tool
-        except AttributeError:
-            return None
-
     def _onWriteStarted(self, output_device):
         '''Save HTML page when gcode is saved.'''
         try:
@@ -299,25 +129,140 @@ class CuraHtmlDoc(Tool):
             # (Either saving or directly to a printer). The functionality of the slice data is not *that* important.
             # But we should be notified about these problems of course.
             Logger.logException("e", "Exception raised in _onWriteStarted")
-                
-                
-    def _has_browser(self):
-        try:
-            webbrowser.get()
-            return True
-        except webbrowser.Error:
-            return False
+
+    def _make_tr_2_cells(self, key: str, value: Any, row_class: str = None) -> str:
+        """Generates an HTML table row string."""
+        # chr(34) is " which I can't escape in an f-string expression in Python 3.10
+        return f'<tr{("class " + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="w-50">{key}</td><td colspan="2">{value}</td></tr>'
+
+    def _make_ol_from_list(self, items: list, base_indent_level: int = 0) -> str:
+        """Makes a HTML <ol> from a list of items and indents it."""
+        list_item_htmls = [indent(f'<li>{item}</li>', base_indent_level + 2) for item in items]
+
+        return("\n" +
+               indent('<ol>', base_indent_level + 1) +
+               "\n".join(list_item_htmls) + "\n" +
+               indent('</ol>', base_indent_level + 1)
+               )
+
+    def _assemble_html(self) -> str:
+        # Information sources
+        global_stack = CuraApplication.getInstance().getGlobalContainerStack()
+        machine_manager = CuraApplication.getInstance().getMachineManager()
+        print_information = CuraApplication.getInstance().getPrintInformation()
+        extruder_stack = CuraApplication.getInstance().getExtruderManager().getActiveExtruderStacks()
+        extruder_count = global_stack.getProperty("machine_extruder_count", "value")
         
-    def _openHtmlPage(self,page_name):
-        # target = os.path.join(tempfile.gettempdir(), page_name)
-        with open(page_name, 'w', encoding='utf-8') as fhandle:
-            self._write(fhandle)
+        output_html: list[str] = []
+
+        # Get locale specific things all at once in case the system's locale
+        # is different to Cura's so we change it for the shortest time possible.
+        original_locale = None
+        formatted_date_time = None
+        
+        try:
+            # 1. Save the current locale settings.
+            # This returns a tuple containing the settings for all categories.
+            original_locale = locale.setlocale(locale.LC_ALL)
             
-        if not self._has_browser() :
-            Logger.log("d", "openHtmlPage default browser not defined") 
-            Message(text = catalog.i18nc("@message","Default browser not defined open \n %s") % (page_name), title = catalog.i18nc("@info:title", "Warning ! Doc Html Cura")).show()
+            # 2. Attempt to set the locale to the system's default.
+            # An empty string "" tells Python to use environment variables.
+            locale.setlocale(locale.LC_ALL, "")
+
+            # Get current date and time
+            now = datetime.now()
+            # Format using locale-specific date and time, separated by a space
+            formatted_date_time = now.strftime("%x %X") 
             
-        QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))
+        except locale.Error as e:
+            # If locale setting fails (e.g., locale not supported on the OS),
+            # log a warning and proceed with a default, non-locale-specific format.
+            Logger.log("e", f"Could not set system locale for date/time formatting: {e}. Using ISO format as fallback.")
+            now = datetime.now()
+            # Fallback to ISO format, or any other default you prefer
+            formatted_date_time = now.isoformat(sep=' ', timespec='seconds') 
+            # You'd then use this fallback `formatted_date_time` in your HTML
+            
+        finally:
+            # 3. CRUCIALLY: Restore the original locale settings.
+            # This `finally` block ensures this happens even if an exception occurs.
+            if original_locale is not None:
+                try:
+                    locale.setlocale(locale.LC_ALL, original_locale)
+                except locale.Error as e:
+                    # Log if restoring locale fails (should be rare if `original_locale` was valid)
+                    Logger.log("e", f"Failed to restore original locale: {e}")
+
+        # Get a thumbnail first because it might take a little bit of time
+        encoded_snapshot: str = None
+        snapshot = self._createSnapshot()
+        if snapshot:
+            thumbnail_buffer = QBuffer()
+            
+            thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
+                    
+            snapshot.save(thumbnail_buffer, "PNG")
+            encoded_snapshot = thumbnail_buffer.data().toBase64().data().decode("utf-8")
+
+        
+        # How indented this section should be at the "root" level of the page output
+        # Which in this case is inside <html><body><table>
+        info_indent: int = 3
+
+        # Add header with CSS and start of page
+        start_html: str = ""
+        try:
+            with open("html_start.html", "r", encoding="utf-8") as start:
+                start_html = start.read()
+        except Exception:
+            Logger.logException("e", "Exception trying to read html_start.html")
+            return ""
+        start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
+                                .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
+                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS, catalog.i18nc("@button:local_changes", "Show/hide user changed settings"))
+                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS, catalog.i18nc("@button:visible_settings", "Show/hide visible settings"))
+                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Show/hide unused settings")))
+
+        output_html.append(start_html)
+        output_html.append(indent('<table width="100%" "border="1" cellpadding="3">', info_indent - 1))
+        # Project name
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName)), info_indent)
+        # Thumbnail
+        if encoded_snapshot:
+            output_html.append(indent(f'<tr><td colspan="3"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
+        # Date/time
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Date/time"), formatted_date_time), info_indent))
+        # Cura version
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Cura Version"), CuraVersion), info_indent))
+        # Preset / Intent (for UM printers)
+        preset_name = global_stack.qualityChanges.getMetaData().get("name", "")
+        if preset_name == "empty":
+            preset_name = machine_manager.activeIntentCategory
+            um_intent = True
+        else:
+            um_intent = False
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Intent") if um_intent else catalog.i18nc("@label", "Profile"), preset_name), info_indent))
+        # Quality profile
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), global_stack.quality.getMetaData().get("name", "")), info_indent))
+        # Extruders enabled/material
+        if extruder_count > 1:
+            extruders_enabled: list = []
+            extruder_materials: list = []
+            for extruder in extruder_stack:
+                extruders_enabled.append(extruder.getMetaDataEntry("enabled"))
+                extruder_materials.append(extruder.material.getMetaData().get("material", ""))
+            # Enabled extruders
+            extruders_enabled_html = self._make_ol_from_list(extruders_enabled, info_indent)
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders Enabled"), extruders_enabled_html), info_indent))
+            # Materials
+            extruder_materials_html = self._make_ol_from_list(extruder_materials, info_indent)
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder Materials"), extruder_materials_html), info_indent))
+        else:
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material"), extruder_stack[0].material.getMetaData().get("material", "")), info_indent))
+        # Material weight
+            
+        
+        return "\n".join(output_html)
     
     def _write(self, stream):
         # Current File path
@@ -339,11 +284,6 @@ class CuraHtmlDoc(Tool):
                     .w-10 { width: 10%; }
                     .w-50 { width: 50%; }
                     .w-70 { width: 70%; }
-                    .pl-l { padding-left: 20px; }
-                    .pl-2 { padding-left: 40px; }
-                    .pl-3 { padding-left: 60px; }
-                    .pl-4 { padding-left: 80px; }
-                    .pl-5 { padding-left: 100px; }
                 </style>
             </head>
             <body lang=EN>
@@ -355,10 +295,8 @@ class CuraHtmlDoc(Tool):
         #global_stack = machine_manager.activeMachine
         global_stack = CuraApplication.getInstance().getGlobalContainerStack()
     
-        self._modified_global_param =[]
-        # modified paramater       
-        top_of_stack = cast(InstanceContainer, global_stack.getTop())  # Cache for efficiency.
-        self._modified_global_param = top_of_stack.getAllKeys()
+        # modified paramater
+        self._modified_global_parameters = global_stack.getTop().getAllKeys()
         # Logger.logException("d", "Modified {}".format(self._modified_global_param))
                 
         TitleTxt = catalog.i18nc("@label","Print settings")
@@ -403,10 +341,8 @@ class CuraHtmlDoc(Tool):
         if snapshot:
             thumbnail_buffer = QBuffer()
             
-            if VERSION_QT5:
-                thumbnail_buffer.open(QBuffer.ReadWrite)
-            else:
-                thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
+
+            thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
                     
             snapshot.save(thumbnail_buffer, "PNG")
             encodedSnapshot = thumbnail_buffer.data().toBase64().data().decode("utf-8")
@@ -421,8 +357,6 @@ class CuraHtmlDoc(Tool):
         # self._WriteTd(stream,"File",os.path.abspath(stream.name))
         # Date
         self._WriteTd(stream,"Date",datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
-        # platform
-        self._WriteTd(stream,"Os",str(platform.system()) + " " + str(platform.version()))
        
         # Version  
         self._WriteTd(stream,"Cura Version",CuraVersion)
@@ -457,13 +391,12 @@ class CuraHtmlDoc(Tool):
                 EnabledStr="%s %s : %d"%(catalog.i18nc("@label", "Extruder"),catalog.i18nc("@label", "Enabled"),PosE)
                 self._WriteTd(stream,EnabledStr,M_Enabled)
             
-        MAterial=0
+        total_material_weight: float = 0
         #   materialWeights
-        for Mat in list(print_information.materialWeights):
-            MAterial=MAterial+Mat
-        if MAterial>0:
-            M_Weight= "{:.1f} g".format(MAterial).rstrip("0").rstrip(".")
-            self._WriteTd(stream,catalog.i18nc("@label","Material estimation"),M_Weight)
+        total_material_weight: float = sum(print_information.materialWeights)
+        if total_material_weight > 0:
+            material_weight_output= f"{round(total_material_weight,1)}g"
+            self._WriteTd(stream,catalog.i18nc("@label","Material estimation"),material_weight_output)
             # self._WriteTd(stream,catalog.i18nc("@label","Filament weight"),str(print_information.materialWeights)) 
             M_Length= str(print_information.materialLengths).rstrip("]").lstrip("[")
             
@@ -498,11 +431,9 @@ class CuraHtmlDoc(Tool):
             for Extrud in extruder_stack :       
                 i += 1                        
                 self._doTree(Extrud,"resolution",stream,0,i)
-                # Shell before 4.9 and now walls
                 self._doTree(Extrud,"shell",stream,0,i)
-                # New section Arachne and 4.9 ?
-                if self.Major > 4 or ( self.Major == 4 and self.Minor >= 9 ) :
-                    self._doTree(Extrud,"top_bottom",stream,0,i)
+
+                self._doTree(Extrud,"top_bottom",stream,0,i)
 
                 self._doTree(Extrud,"infill",stream,0,i)
                 self._doTree(Extrud,"material",stream,0,i)
@@ -513,11 +444,8 @@ class CuraHtmlDoc(Tool):
                 self._doTree(Extrud,"dual",stream,0,i)
         else:
             self._doTree(extruder_stack[0],"resolution",stream,0,0)
-            # Shell before 4.9 and now walls
             self._doTree(extruder_stack[0],"shell",stream,0,0)
-            # New section Arachne and 4.9 ?
-            if self.Major > 4 or ( self.Major == 4 and self.Minor >= 9 ) :
-                self._doTree(extruder_stack[0],"top_bottom",stream,0,0)
+            self._doTree(extruder_stack[0],"top_bottom",stream,0,0)
 
             self._doTree(extruder_stack[0],"infill",stream,0,0)
             self._doTree(extruder_stack[0],"material",stream,0,0)
@@ -615,13 +543,13 @@ class CuraHtmlDoc(Tool):
             stream.write("<tr class='category'>")
             if extrud>0:
                 untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_catalog.i18nc(definition_key, untranslated_label) 
+                translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label) 
                 Pos = int(stack.getMetaDataEntry("position"))   
                 Pos += 1
                 Info_Extrud="%s : %d %s"%(ExtruderStrg,Pos,translated_label)
             else:
                 untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_catalog.i18nc(definition_key, untranslated_label)
+                translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label)
                 Info_Extrud=str(translated_label)
             stream.write("<td colspan='3'>" + str(Info_Extrud) + "</td>")
             #stream.write("<td class=category>" + str(key) + "</td>")
@@ -640,9 +568,9 @@ class CuraHtmlDoc(Tool):
             
             # untranslated_label=stack.getProperty(key,"label").capitalize()
             untranslated_label=stack.getProperty(key,"label")           
-            translated_label=i18n_catalog.i18nc(definition_key, untranslated_label)
+            translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label)
             
-            stream.write("<td class='w-70 pl-"+str(depth)+"'>" + str(translated_label) + "</td>")
+            stream.write("<td class='w-70 pl-"+str(depth)+"'>" + ("►&nbsp;&nbsp;" * depth) + str(translated_label) + "</td>")
             
             GetType=stack.getProperty(key,"type")
             GetVal=stack.getProperty(key,"value")
@@ -666,7 +594,7 @@ class CuraHtmlDoc(Tool):
                     get_option=str(GetVal)
                     GetOption=stack.getProperty(key,"options")
                     GetOptionDetail=GetOption[get_option]
-                    GelValStr=i18n_catalog.i18nc(definition_option, GetOptionDetail)
+                    GelValStr=i18n_printer_catalog.i18nc(definition_option, GetOptionDetail)
                     # Logger.log("d", "GetType_doTree = %s ; %s ; %s ; %s",definition_option, GelValStr, GetOption, GetOptionDetail)
                 else:
                     GelValStr=str(GetVal).replace(r"\n", "<br>")
@@ -694,13 +622,13 @@ class CuraHtmlDoc(Tool):
         if stack.getProperty(key,"type") == "category":
             if extrud>0:
                 untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_extrud_catalog.i18nc(definition_key, untranslated_label)
+                translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
                 Pos = int(stack.getMetaDataEntry("position"))   
                 Pos += 1                
                 Info_Extrud="%s : %d %s"%(ExtruderStrg,Pos,translated_label)
             else:
                 untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_extrud_catalog.i18nc(definition_key, untranslated_label)
+                translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
                 Info_Extrud=str(translated_label)
             stream.write("<tr class='category'><td colspan='3'>" + str(Info_Extrud) + "</td>")
             stream.write("</tr>\n")
@@ -718,7 +646,7 @@ class CuraHtmlDoc(Tool):
             
             # untranslated_label=stack.getProperty(key,"label").capitalize()
             untranslated_label=stack.getProperty(key,"label")           
-            translated_label=i18n_extrud_catalog.i18nc(definition_key, untranslated_label)
+            translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
             
             stream.write("<td class='w-70 pl-"+str(depth)+"'>" + str(translated_label) + "</td>")
             
@@ -745,7 +673,7 @@ class CuraHtmlDoc(Tool):
                     get_option=str(GetVal)
                     GetOption=stack.getProperty(key,"options")
                     GetOptionDetail=GetOption[get_option]
-                    GelValStr=i18n_catalog.i18nc(definition_option, GetOptionDetail)
+                    GelValStr=i18n_printer_catalog.i18nc(definition_option, GetOptionDetail)
                     # Logger.log("d", "GetType_doTree = %s ; %s ; %s ; %s",definition_option, GelValStr, GetOption, GetOptionDetail)
                 else:
                     GelValStr=str(GetVal).replace(r"\n", "<br>")

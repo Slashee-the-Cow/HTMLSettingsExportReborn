@@ -1,9 +1,9 @@
 {
-    "name": "Cura Html Doc",
-    "author": "5@xes",
-    "version": "0.0.5",
-    "description": "Generate Documentation Under Html Format.",
-    "api": 7,
-    "supported_sdk_versions": ["7.9.0", "8.0.0", "8.1.0", "8.2.0"],
-    "i18n-catalog": "curahtmldoc"
+    "name": "HTML Settings Export Reborn",
+    "author": "Slashee the Cow",
+    "version": "1.0.0",
+    "description": "Export a HTML file with current printing settings",
+    "api": 8,
+    "supported_sdk_versions": ["8.0.0", "8.1.0", "8.2.0", "8.3.0", "8.4.0", "8.5.0", "8.6.0", "8.7.0", "8.8.0", "8.9.0", "8.10.0"],
+    "i18n-catalog": "htmlsettingsexport"
 }
