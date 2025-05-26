@@ -12,14 +12,23 @@
 #   - This remodelling includes removing oodles of duplicate code. While it's fine if your house has two bathrooms and you renovate it to have two bathrooms, that doesn't apply to code.
 #   - What little Qt is in here, dropped Qt 5 support because I have enough on my hands as it is. This makes Cura 5.0 a minimum.
 #   - Removed autosave setting. Generating this is a somewhat fragile process and I really don't want to get in the way of gcode saving.
-#   - Cleaned up CSS, removing unused classes. Fixed a group that was numbered "l, 2, 3, 4, 5" (look carefully at the first one).
+#   - Cleaned up CSS, formatting it and removing unused classes.
+#   - Children of a setting now use a graphical indicator to indicate their depth in the tree instead of increasing indents (hard to read) which used CSS classes numbered [l,2,3,4,5] (look at the first one)
 #   - HTML output is now generated in advance and written all at once instead of literally thousands of individual writes over time locking up file I/O and the GIL.
 #   - Large chunks of HTML now loaded from individual files instead of ungainly string literals.
-#   - Added symbols (in addition to the padding) to more clearly indicate parent/child relationships.
+#   - Managed to make those large chunks localisable despite that.
 #   - Output HTML markup now much more clean with things like indents and new lines. And being valid.
 #   - Generated HTML now consistently follows HTML5 standards instead of using deprecated elements and having traces of XHTML.
 #   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are.
 #   - Date/time practically guaranteed to be in system locale's format instead of a hard coded format.
+#   - Thumbnail generation now uses "last slice" as a primary source and falls back to trying to take a Snapshot (which I have found unreliable) as a backup.
+#   - Setting sections can now be collapsed to make scrolling through the whole thing less of a slog.
+#   - Now shows all categories of settings for each extruder, including the ones where *most* (but not all) of the settings are shared.
+#   - Lists of settings should now look "easy to read" instead of "like a spreadsheet".
+#   - Significantly improved error handling in the now less likely situation there's a problem.
+#   - Added "warning" colouring for values in addition to errors.
+#   - Error and warning colouring should now look much more consistent.
+
 
 import os
 import datetime
@@ -35,6 +44,7 @@ from typing import cast, Dict, List, Optional, Tuple, Any, Set
 
 from PyQt6.QtCore import Qt, QObject, QBuffer, QUrl
 from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QFileDialog
 from numpy import maximum
 
 
@@ -91,16 +101,69 @@ class HTMLSettingsExportReborn(Extension):
         self._modified_global_settings: list = []
         self._visible_settings: list = []
 
+        self._plugin_dir = os.path.dirname(__file__)
+
         # Set up menu item
         self.setMenuName("HTML Settings Export")
         self.addMenuItem("Export settings", self._save_settings_html)
 
     def _save_settings_html(self):
+        # output_filename = os.path.abspath(os.path.join(self._plugin_dir, "cura_settings.html"))
+        output_filename = self._get_file_save_path(self._application.getPrintInformation().jobName + ".html")
+        if not output_filename:
+            # User cancelled save dialog
+            Logger.log("d", "User cancelled save for HTML export")
+            return
+        
         try:
-            with open("cura_settings.html", "w", encoding="utf-8") as page:
+            with open(output_filename, "w", encoding="utf-8") as page:
                 page.write(self._assemble_html())
         except Exception as e:
             Logger.logException("e", f"Exception while trying to save HTML settings: {e}")
+            Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
+                    text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
+        Logger.log("i", f"HTML settings export successful to {output_filename}")
+
+    def _get_file_save_path(self, suggested_name: str = "cura settings.html") -> Optional[str]:
+        dialog = QFileDialog()
+
+        dialog.setWindowTitle(catalog.i18nc("@save:dialog_title", "Save HTML Settings Export"))
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+
+        # Set HTML filter string
+        html_filter = catalog.i18nc("@save:html_filter", "HTML Files (*.html, *.htm)")
+        dialog.setNameFilters([
+            html_filter,
+            "All Files (*)"
+        ])
+
+        dialog.selectNameFilter(html_filter)
+
+        # Get default file save path from last Cura save location
+        default_directory = self._preferences.getValue("local_file/dialog_save_path")
+        if default_directory and os.path.exists(default_directory):
+            dialog.setDirectory(default_directory)
+        else:
+            dialog.setDirectory(os.path.expanduser("~"))  # Default to user's home directory
+
+        dialog.selectFile(suggested_name)
+
+        if not dialog.exec():
+            # User cancelled the save
+            return None
+
+        file_name = dialog.selectedFiles()[0]
+        selected_filter = dialog.selectedNameFilter()
+
+        if selected_filter == html_filter:
+            _, ext = os.path.splitext(file_name)
+            if ext.lower() not in [".html", ".htm"]:
+                # Add a .html extension if the HTML name filter is selected but they didn't add the extension
+                file_name += ".html"
+
+        return file_name
+
  
     def _has_browser(self):
         try:
@@ -109,7 +172,7 @@ class HTMLSettingsExportReborn(Extension):
         except webbrowser.Error:
             return False
         
-    def _openHtmlPage(self,page_name):
+    """def _openHtmlPage(self,page_name):
         # target = os.path.join(tempfile.gettempdir(), page_name)
         with open(page_name, 'w', encoding='utf-8') as fhandle:
             self._write(fhandle)
@@ -118,33 +181,10 @@ class HTMLSettingsExportReborn(Extension):
             Logger.log("d", "openHtmlPage default browser not defined") 
             Message(text = catalog.i18nc("@message","Default browser not defined open \n %s") % (page_name), title = catalog.i18nc("@info:title", "Warning ! Doc Html Cura")).show()
             
-        QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))"""
         
-    def _onWriteStarted(self, output_device):
-        '''Save HTML page when gcode is saved.'''
-        try:
-            if self._auto_save :                   
-                print_information = CuraApplication.getInstance().getPrintInformation() 
-                file_html = print_information.jobName + ".html"
-                # Folder Doesn't Exist Anymore
-                if not os.path.isdir(self._filefolder) : 
-                    self._filefolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HtmlDoc")
-                    Message(text = catalog.i18nc("@message","Save path set to : \n %s") % self._filefolder, title = catalog.i18nc("@title", "Cura Html Doc")).show()               
-                
-                self._doc_file = os.path.join(self._filefolder, file_html)
-                # self._openHtmlPage(self._doc_file)
-                # Just Save the file
-                with open(self._doc_file, 'w', encoding='utf-8') as fhandle:
-                    self._write(fhandle)
-
-        except Exception:
-            # We really can't afford to have a mistake here, as this would break the sending of g-code to a device
-            # (Either saving or directly to a printer). The functionality of the slice data is not *that* important.
-            # But we should be notified about these problems of course.
-            Logger.logException("e", "Exception raised in _onWriteStarted")
-
     def _make_tr_2_cells(self, key: str, value: Any, row_class: str = None) -> str:
-        """Generates an HTML table row string."""
+        """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
         return f'<tr{("class " + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="w-50">{key}</td><td colspan="2">{value}</td></tr>'
 
@@ -163,10 +203,10 @@ class HTMLSettingsExportReborn(Extension):
 
     def _assemble_html(self) -> str:
         # Information sources
-        global_stack = CuraApplication.getInstance().getGlobalContainerStack()
-        machine_manager = CuraApplication.getInstance().getMachineManager()
-        print_information = CuraApplication.getInstance().getPrintInformation()
-        extruder_stack = CuraApplication.getInstance().getExtruderManager().getActiveExtruderStacks()
+        global_stack = self._application.getGlobalContainerStack()
+        machine_manager = self._application.getMachineManager()
+        print_information = self._application.getPrintInformation()
+        extruder_stack = self._application.getExtruderManager().getActiveExtruderStacks()
         extruder_count = global_stack.getProperty("machine_extruder_count", "value")
 
         self._modified_global_settings = global_stack.getTop().getAllKeys()
@@ -229,9 +269,10 @@ class HTMLSettingsExportReborn(Extension):
         info_indent: int = 3
 
         # Add header with CSS and start of page
+        start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_start.html"))
         start_html: str = ""
         try:
-            with open("html_start.html", "r", encoding="utf-8") as start:
+            with open(start_html_file, "r", encoding="utf-8") as start:
                 start_html = start.read()
         except Exception:
             Logger.logException("e", "Exception trying to read html_start.html")
@@ -245,7 +286,7 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append(start_html)
         output_html.append(indent('<table width="100%" "border="1" cellpadding="3">', info_indent - 1))
         # Project name
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName)), info_indent)
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
         # Thumbnail
         if encoded_snapshot:
             output_html.append(indent(f'<tr><td colspan="2"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
@@ -271,21 +312,21 @@ class HTMLSettingsExportReborn(Extension):
                 extruders_enabled.append(extruder.getMetaDataEntry("enabled"))
                 extruder_materials.append(extruder.material.getMetaData().get("material", ""))
             # Enabled extruders
-            extruders_enabled_html = self._make_ol_from_list(extruders_enabled, info_indent)
+            extruders_enabled_html = self._make_ol_from_list(extruders_enabled, base_indent_level = info_indent)
             output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders enabled"), extruders_enabled_html), info_indent))
             # Materials
-            extruder_materials_html = self._make_ol_from_list(extruder_materials, info_indent)
+            extruder_materials_html = self._make_ol_from_list(extruder_materials, base_indent_level = info_indent)
             output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder materials"), extruder_materials_html), info_indent))
         # Material (single extruder)
         else:
             output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material"), extruder_stack[0].material.getMetaData().get("material", "")), info_indent))
         # Material weight
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material weight used"), self._make_ol_from_list((round(x, 1) for x in print_information.materialWeights), info_indent, suffix = "g"), info_indent)))
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material weight used"), self._make_ol_from_list(list((round(x, 1) for x in print_information.materialWeights)), base_indent_level = info_indent, suffix = "g")), info_indent))
         # Material length
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material length used"), self._make_ol_from_list((round(x, 2) for x in print_information.materialLengths), info_indent, suffix = "m"), info_indent)))
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material length used"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialLengths)), info_indent, suffix = "m")), info_indent))
         # Material cost
         cura_currency = str(self._preferences.getValue("cura/currency"))
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material cost"), self._make_ol_from_list((round(x, 2) for x in print_information.materialCosts), info_indent, prefix = cura_currency), info_indent)))
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material cost"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialCosts)), info_indent, prefix = cura_currency)), info_indent))
         # Printing time
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Estimated print time"), print_information.currentPrintTime.getDisplayString(DurationFormat.Format.Long)), info_indent))
         # Close basic information table
@@ -320,7 +361,7 @@ class HTMLSettingsExportReborn(Extension):
                 try:
                     script_parser.read_string(script_str)
                 except configparser.Error as e:
-                    Logger.error(f"Stored post-processing scripts have syntax errors: {e}")
+                    Logger.log("e", f"Stored post-processing scripts have syntax errors: {e}")
                     continue
                 for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
                     if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
@@ -332,12 +373,13 @@ class HTMLSettingsExportReborn(Extension):
 
         output_html.append(self._make_category_footer(info_indent - 1))
 
+        end_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_end.html"))
         end_html: str = ""
         try:
-            with open("html_end.html", "r", encoding="utf-8") as end:
+            with open(end_html_file, "r", encoding="utf-8") as end:
                 end_html = end.read()
         except Exception:
-            Logger.logException("e", "Exception trying to read html_start.html")
+            Logger.logException("e", "Exception trying to read html_end.html")
             return ""
         output_html.append(end_html)
         
@@ -435,7 +477,8 @@ class HTMLSettingsExportReborn(Extension):
                         setting_class = "warning"
                 except (ValueError, TypeError) as e:
                     Logger.log("e", f"Error trying to convert minimum/maximum value for {key}: {e}")
-
+                    Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
+                    text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
             case "enum":
                 option_translation_key = key + "option" + str(setting_value)
                 options = stack.getProperty(key, "options")
@@ -459,10 +502,10 @@ class HTMLSettingsExportReborn(Extension):
 
         return setting_output
             
-    def _write(self, stream):
+    """def _write(self, stream):
         # Current File path
         # Logger.log("d", "stream = %s", os.path.abspath(stream.name))   
-        stream.write("""<!DOCTYPE html>
+        stream.write(""<!DOCTYPE html>
             <meta charset='UTF-8'>
             <head>
                 <title>Cura Settings Export</title>
@@ -482,7 +525,7 @@ class HTMLSettingsExportReborn(Extension):
                 </style>
             </head>
             <body lang=EN>
-        \n""")
+        \n"")
         
         machine_manager = CuraApplication.getInstance().getMachineManager()        
         stack = CuraApplication.getInstance().getGlobalContainerStack()
@@ -505,24 +548,24 @@ class HTMLSettingsExportReborn(Extension):
         stream.write("<button id='local'>" + ButtonTxt_Modi + "</button><P>\n")
 
         # Script       
-        stream.write("""<script>
+        stream.write(""<script>
                             var enabled = document.getElementById('enabled');
                             enabled.addEventListener('click', function() {
                                 document.body.classList.toggle('hide-disabled');
                             });
-                        </script>\n""")
-        stream.write("""<script>
+                        </script>\n"")
+        stream.write(""<script>
                             var local = document.getElementById('local');
                             local.addEventListener('click', function() {
                                 document.body.classList.toggle('hide-local');
                             });
-                        </script>\n""")
-        stream.write("""<script>
+                        </script>\n"")
+        stream.write(""<script>
                             var visible = document.getElementById('visible');
                             visible.addEventListener('click', function() {
                                 document.body.classList.toggle('hide-visible');
                             });
-                        </script>\n""")                        
+                        </script>\n"")                        
         #Get extruder count
         extruder_count=stack.getProperty("machine_extruder_count", "value")
         print_information = CuraApplication.getInstance().getPrintInformation()
@@ -883,19 +926,24 @@ class HTMLSettingsExportReborn(Extension):
         #look for children
         if len(stack.getSettingDefinition(key).children) > 0:
             for i in stack.getSettingDefinition(key).children:       
-                self._doTreeExtrud(stack,i.key,stream,depth,extrud)
-    # Compatibility Cura 4.10 and upper
+                self._doTreeExtrud(stack,i.key,stream,depth,extrud)"""
+
     @call_on_qt_thread  # must be called from the main thread because of OpenGL
     def _createSnapshot(self):
+        backend = self._application.getBackend()
+        snapshot = None if getattr(backend, "getLatestSnapshot", None) is None else backend.getLatestSnapshot()
+        if snapshot is not None:
+            return snapshot
         Logger.log("d", "Creating thumbnail image...")
         if not CuraApplication.getInstance().isVisible:
             Logger.log("w", "Can't create snapshot when renderer not initialized.")
             return None
         try:
-            snapshot = Snapshot.snapshot(width = 300, height = 300)
-        except:
-            Logger.logException("w", "Failed to create snapshot image")
+            snapshot = Snapshot.snapshot(width=300, height=300)
+        except Exception as e:
+            Logger.logException("w", f"Failed to create snapshot image: {e}")
             return None
-
+        if snapshot is None:
+            Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
+                    text = catalog.i18nc("@error_snapshot", "Error encountered while generating a thumbnail.\nPlease try slicing the scene then exporting again.")).show()
         return snapshot
-           
