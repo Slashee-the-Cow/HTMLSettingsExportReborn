@@ -18,8 +18,8 @@
 #   - Added symbols (in addition to the padding) to more clearly indicate parent/child relationships.
 #   - Output HTML markup now much more clean with things like indents and new lines. And being valid.
 #   - Generated HTML now consistently follows HTML5 standards instead of using deprecated elements and having traces of XHTML.
-#   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are..
-#   - Date/time practically guaranteed to be in system locale's format instead of hard coded.
+#   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are.
+#   - Date/time practically guaranteed to be in system locale's format instead of a hard coded format.
 
 import os
 import datetime
@@ -35,6 +35,7 @@ from typing import cast, Dict, List, Optional, Tuple, Any, Set
 
 from PyQt6.QtCore import Qt, QObject, QBuffer, QUrl
 from PyQt6.QtGui import QDesktopServices
+from numpy import maximum
 
 
 from cura.CuraApplication import CuraApplication
@@ -44,13 +45,13 @@ from cura.Snapshot import Snapshot
 
 from UM.Extension import Extension
 from UM.Settings.Models.SettingPreferenceVisibilityHandler import SettingPreferenceVisibilityHandler
-from UM.Application import Application
 from UM.Logger import Logger
 from UM.Message import Message
+from UM.Preferences import Preferences
+from UM.Qt.Duration import DurationFormat
 from UM.Scene.Selection import Selection
 from UM.Settings.InstanceContainer import InstanceContainer
-from UM.Qt.Duration import DurationFormat
-from UM.Preferences import Preferences
+from UM.Settings.ContainerStack import ContainerStack
 
 from UM.Resources import Resources
 from UM.i18n import i18nCatalog
@@ -78,6 +79,7 @@ class HTMLSettingsExportReborn(Extension):
     HTML_REPLACEMENT_UNUSED_SETTINGS: str = "$$$UNUSED_SETTINGS$$$"
     HTML_REPLACEMENT_VISIBLE_SETTINGS: str = "$$$VISIBLE_SETTINGS$$$"
     HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS: str = "$$$LOCAL_CHANGE_SETTINGS$$$"
+    CHILD_SPACER = '<div class="child_spacer">►</div>'
     
     def __init__(self):
         super().__init__()
@@ -86,8 +88,19 @@ class HTMLSettingsExportReborn(Extension):
 
         self._preferences = self._application.getPreferences()
 
-        self._modified_global_parameters: list = []
+        self._modified_global_settings: list = []
+        self._visible_settings: list = []
 
+        # Set up menu item
+        self.setMenuName("HTML Settings Export")
+        self.addMenuItem("Export settings", self._save_settings_html)
+
+    def _save_settings_html(self):
+        try:
+            with open("cura_settings.html", "w", encoding="utf-8") as page:
+                page.write(self._assemble_html())
+        except Exception as e:
+            Logger.logException("e", f"Exception while trying to save HTML settings: {e}")
  
     def _has_browser(self):
         try:
@@ -135,9 +148,12 @@ class HTMLSettingsExportReborn(Extension):
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
         return f'<tr{("class " + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="w-50">{key}</td><td colspan="2">{value}</td></tr>'
 
-    def _make_ol_from_list(self, items: list, base_indent_level: int = 0) -> str:
+    def _make_ol_from_list(self, items: list, base_indent_level: int = 0, prefix: str = "", suffix: str = "", return_single_item: bool = True) -> str:
         """Makes a HTML <ol> from a list of items and indents it."""
-        list_item_htmls = [indent(f'<li>{item}</li>', base_indent_level + 2) for item in items]
+        if return_single_item and len(items) == 1:
+            return f"{prefix}{items[0]}{suffix}"
+        
+        list_item_htmls = [indent(f'<li>{prefix}{item}{suffix}</li>', base_indent_level + 2) for item in items]
 
         return("\n" +
                indent('<ol>', base_indent_level + 1) +
@@ -152,6 +168,9 @@ class HTMLSettingsExportReborn(Extension):
         print_information = CuraApplication.getInstance().getPrintInformation()
         extruder_stack = CuraApplication.getInstance().getExtruderManager().getActiveExtruderStacks()
         extruder_count = global_stack.getProperty("machine_extruder_count", "value")
+
+        self._modified_global_settings = global_stack.getTop().getAllKeys()
+        self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()
         
         output_html: list[str] = []
 
@@ -229,7 +248,7 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName)), info_indent)
         # Thumbnail
         if encoded_snapshot:
-            output_html.append(indent(f'<tr><td colspan="3"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
+            output_html.append(indent(f'<tr><td colspan="2"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
         # Date/time
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Date/time"), formatted_date_time), info_indent))
         # Cura version
@@ -244,7 +263,7 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Intent") if um_intent else catalog.i18nc("@label", "Profile"), preset_name), info_indent))
         # Quality profile
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), global_stack.quality.getMetaData().get("name", "")), info_indent))
-        # Extruders enabled/material
+        # Extruders enabled/materials (multiple extruders)
         if extruder_count > 1:
             extruders_enabled: list = []
             extruder_materials: list = []
@@ -253,17 +272,193 @@ class HTMLSettingsExportReborn(Extension):
                 extruder_materials.append(extruder.material.getMetaData().get("material", ""))
             # Enabled extruders
             extruders_enabled_html = self._make_ol_from_list(extruders_enabled, info_indent)
-            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders Enabled"), extruders_enabled_html), info_indent))
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders enabled"), extruders_enabled_html), info_indent))
             # Materials
             extruder_materials_html = self._make_ol_from_list(extruder_materials, info_indent)
-            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder Materials"), extruder_materials_html), info_indent))
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder materials"), extruder_materials_html), info_indent))
+        # Material (single extruder)
         else:
             output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material"), extruder_stack[0].material.getMetaData().get("material", "")), info_indent))
         # Material weight
-            
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material weight used"), self._make_ol_from_list((round(x, 1) for x in print_information.materialWeights), info_indent, suffix = "g"), info_indent)))
+        # Material length
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material length used"), self._make_ol_from_list((round(x, 2) for x in print_information.materialLengths), info_indent, suffix = "m"), info_indent)))
+        # Material cost
+        cura_currency = str(self._preferences.getValue("cura/currency"))
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material cost"), self._make_ol_from_list((round(x, 2) for x in print_information.materialCosts), info_indent, prefix = cura_currency), info_indent)))
+        # Printing time
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Estimated print time"), print_information.currentPrintTime.getDisplayString(DurationFormat.Format.Long)), info_indent))
+        # Close basic information table
+        output_html.append(indent('</table>', info_indent - 1))
+
+        # Get print quality settings for each extruder
+        # Categories appear in the same order they do in Cura's print quality settings panel
+        settings_categories = ["resolution", "shell", "top_bottom", "infill", "material",
+                               "speed", "travel", "cooling", "dual", "support", "platform_adhesion",
+                               "meshfix", "blackmagic", "experimental"]
+
+        # Get settings for each category
+        for i, stack in enumerate(extruder_stack):
+            for category in settings_categories:
+                output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
+
+        # Get settings for each extruder
+        for i, extruder in enumerate(extruder_stack):
+            output_html.extend(self._get_category_settings("machine_settings", extruder, info_indent -1, i, i18n_extruder_catalog, True))
+
+        # Get post-processing scripts
+        output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), info_indent - 1))
+
+        scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
+        if scripts_list :
+            for script_str in scripts_list.split("\n"):
+                if not script_str:
+                    continue
+                script_str = script_str.replace(r"\\\n", "\n").replace(r"\\\\", "\\\\")  # Unescape escape sequences.
+                script_parser = configparser.ConfigParser(interpolation=None)
+                script_parser.optionxform = str  # type: ignore  # Don't transform the setting keys as they are case-sensitive.
+                try:
+                    script_parser.read_string(script_str)
+                except configparser.Error as e:
+                    Logger.error(f"Stored post-processing scripts have syntax errors: {e}")
+                    continue
+                for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
+                    if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
+                        continue
+                    setting_param = ""
+                    for setting_key, setting_value in settings.items():
+                        setting_param += f'{setting_key}: {setting_value}<br>'
+                    output_html.append(self._make_category_setting_row(script_name, setting_param.rstrip("<br>"), info_indent + 1))
+
+        output_html.append(self._make_category_footer(info_indent - 1))
+
+        end_html: str = ""
+        try:
+            with open("html_end.html", "r", encoding="utf-8") as end:
+                end_html = end.read()
+        except Exception:
+            Logger.logException("e", "Exception trying to read html_start.html")
+            return ""
+        output_html.append(end_html)
         
         return "\n".join(output_html)
-    
+
+    def _make_category_header(self, text: str, base_indent: int):
+        header_string = f'<details open><summary><h2>{text}</h2></summary>'
+        return f'{indent(header_string, base_indent)}\n{indent('<table class="category">', base_indent + 1)}'
+
+    def _make_category_setting_row(self, setting: str, value: str, indent_level: str, row_class: str = "", value_class: str = "", child_depth: int = 0) -> str:
+        # Gotta use chr(34) " there or else it'd be a triple double quote
+        row_string = f'<tr class="{row_class}"><td>{self.CHILD_SPACER * child_depth}{setting}</td><td{(" class = " + value_class + chr(34)) if value_class else ""}>{value}</td></tr>'
+        return f'{indent(row_string, indent_level)}'
+
+    def _make_category_footer(self, base_indent: int):
+        return f'{indent('</table>', base_indent + 1)}\n{indent('</details>', base_indent)}'
+
+    def _get_category_settings(self, category_name: str, stack: ContainerStack, base_indent_level: int, extruder_index: int, local_catalog: i18nCatalog, children_local_stack: bool = False) -> list[str]:
+        category_output: list[str] = []
+
+        # Apparently necessary to get translated 
+        translation_key = category_name + " label"
+        # Set extruder prefix (or lack thereof for single extruder machines)
+        extruder_prefix: str = f'{catalog.i18nc("@label", "Extruder")} {(extruder_index + 1)}: ' if extruder_index >= 0 else ""
+
+        # Get translated category name... just make sure we're in a category
+        if stack.getProperty(category_name, "type") == "category":
+            category_label = stack.getProperty(category_name, "label")
+            category_translated = local_catalog.i18nc(translation_key, category_label)
+            category_output.append(self._make_category_header(extruder_prefix + category_translated, base_indent_level))
+        else:
+            # This should only be run on the top level of categories
+            return []
+
+        setting_indent_level = base_indent_level + 2
+
+        if children_local_stack:
+            children_list = stack.getSettingDefinition(category_name).children
+        else:
+            children_list = self._application.getGlobalContainerStack().getSettingDefinition(category_name).children
+        
+        for child in children_list:
+            category_output.extend(self._list_category_setting(stack, child.key, setting_indent_level, local_catalog, 0, children_local_stack))
+
+        category_output.append(self._make_category_footer(base_indent_level))
+
+        return category_output
+
+    def _list_category_setting(self, stack, key: str, indent_level: int, local_catalog: i18nCatalog, depth: int = 0, children_local_stack: bool = False) -> list[str]:
+        setting_output = []
+        translation_key = key + " label"
+        
+        row_class: str = ""
+        if not stack.getProperty(key, "enabled"):
+            row_class = "disabled"
+        elif key in self._modified_global_settings:
+            row_class = "local"
+        elif key not in self._visible_settings:
+            row_class = "hidden"
+        else:
+            row_class = "normal"
+
+        untranslated_label = stack.getProperty(key, "label")
+        translated_label = local_catalog.i18nc(translation_key, untranslated_label)
+
+        setting_type = stack.getProperty(key, "type")
+        setting_value = stack.getProperty(key, "value")
+        setting_string: str = ""
+        setting_class: str = ""
+
+        match str(setting_type):
+            case "float":
+                setting_string = str(float(round(setting_value, 4))).rstrip("0").rstrip(".")  # Drop trailing zeroes and decimal point if it's a whole number
+
+                minimum_value = stack.getProperty(key, "minimum_value")
+                maximum_value = stack.getProperty(key, "maximum_value")
+                minimum_value_warning = stack.getProperty(key, "minimum_value_warning")
+                maximum_value_warning = stack.getProperty(key, "maximum_value_warning")
+
+                try:  # I'm None checking but it never hurts to have a safety net
+                    if minimum_value is not None:
+                        minimum_value = float(minimum_value)
+                    if maximum_value is not None:
+                        maximum_value = float(maximum_value)
+                    if minimum_value_warning is not None:
+                        minimum_value_warning = float(minimum_value_warning)
+                    if maximum_value_warning is not None:
+                        maximum_value_warning = float(maximum_value_warning)
+
+                    if (minimum_value is not None and setting_value < minimum_value) or \
+                       (maximum_value is not None and setting_value > maximum_value):
+                        setting_class = "error"
+                    elif (minimum_value_warning is not None and setting_value < minimum_value_warning) or \
+                         (maximum_value_warning is not None and setting_value > maximum_value_warning):
+                        setting_class = "warning"
+                except (ValueError, TypeError) as e:
+                    Logger.log("e", f"Error trying to convert minimum/maximum value for {key}: {e}")
+
+            case "enum":
+                option_translation_key = key + "option" + str(setting_value)
+                options = stack.getProperty(key, "options")
+                untranslated_option = options[str(setting_value)]
+                setting_string = local_catalog.i18nc(option_translation_key, untranslated_option)
+
+            case _:
+                setting_string = str(setting_value).replace("\n", "<br>")
+
+        setting_string += str(stack.getProperty(key, "unit")) if stack.getProperty(key, "unit") else ""
+
+        setting_output.append(self._make_category_setting_row(translated_label, setting_string, indent_level + depth, row_class, setting_class, depth))
+
+        if children_local_stack:
+            children_list = stack.getSettingDefinition(key).children
+        else:
+            children_list = self._application.getGlobalContainerStack().getSettingDefinition(key).children
+
+        for child in children_list:
+            setting_output.extend(self._list_category_setting(stack, child.key, indent_level, local_catalog, depth + 1, children_local_stack))
+
+        return setting_output
+            
     def _write(self, stream):
         # Current File path
         # Logger.log("d", "stream = %s", os.path.abspath(stream.name))   
