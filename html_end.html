@@ -1,0 +1,16 @@
+        <script>
+            function setupToggleButton(buttonId, className) {
+                var button = document.getElementById(buttonId);
+                if (button) { // Make sure button actually exists
+                    button.addEventListener("click", function() {
+                        document.body.classList.toggle(className);
+                    });
+                }
+            }
+
+            setupToggleButton("enabled_settings", "hide-disabled");
+            setupToggleButton("local_changes", "hide-local");
+            setupToggleButton("visible_settings", "hide-visible");
+        </script>
+    </body>
+</html>
