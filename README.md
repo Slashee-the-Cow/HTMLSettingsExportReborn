@@ -1,5 +1,5 @@
-# Cura Html Doc
+# HTML Settings Export Reborn
+A continuation of [Cura HTML Doc](https://github.com/5axes/CuraHtmlDoc) by [5axes](https://github.com/5axes/)
 
-Cura Html Doc from the Left Tool menu.
-
-![menuSettings](./images/menu.png)
+### Known Issues
+- Auto indent of HTML code is still practicing its aim and may not work properly. Not noticeable by looking at the page, so not a huge problem.

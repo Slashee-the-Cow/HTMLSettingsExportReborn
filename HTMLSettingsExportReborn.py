@@ -15,8 +15,8 @@
 #   - Children of a setting now use a graphical indicator to indicate their depth in the tree instead of increasing indents (hard to tell apart) which used CSS classes numbered [l,2,3,4,5] (look at the first one)
 #   - HTML output is now generated in advance and written all at once instead of literally thousands of individual writes over time locking up file I/O and the GIL.
 #   - Large chunks of HTML now loaded from individual files instead of ungainly string literals.
-#   - Separated CSS into its own file (even more individual files than just the HTML!) and cleaned it up, formatting it and removing unused classes.
 #   - Managed to make those large chunks localisable despite that.
+#   - Cleaned up CSS, formatting it and removing unused classes. And adding new, used ones.
 #   - Output HTML markup now much more clean with things like indents and new lines. And being valid.
 #   - Generated HTML now consistently follows HTML5 standards instead of using deprecated elements and having traces of XHTML.
 #   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are.
@@ -90,7 +90,9 @@ class HTMLSettingsExportReborn(Extension):
     HTML_REPLACEMENT_UNUSED_SETTINGS: str = "$$$UNUSED_SETTINGS$$$"
     HTML_REPLACEMENT_VISIBLE_SETTINGS: str = "$$$VISIBLE_SETTINGS$$$"
     HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS: str = "$$$LOCAL_CHANGE_SETTINGS$$$"
-    CHILD_SPACER = '<div class="child_spacer">►</div>'
+    HTML_REPLACEMENT_PROJECT_TITLE: str = "$$$PROJECT_NAME$$$"
+    HTML_REPLACEMENT_PROFILE_NAME: str = "$$$PROFILE_NAME$$$"
+    CHILD_SPACER = '<div class="child-spacer">►</div>'
     
     def __init__(self):
         super().__init__()
@@ -105,6 +107,8 @@ class HTMLSettingsExportReborn(Extension):
         self._plugin_dir = os.path.dirname(__file__)
         self._single_extruder: bool = False
 
+        self._export_fail = False  # I catch so many exceptions I sometimes end up with blank files
+
         # Set up menu item
         self.setMenuName("HTML Settings Export")
         self.addMenuItem("Export settings", self._save_settings_html)
@@ -116,10 +120,12 @@ class HTMLSettingsExportReborn(Extension):
             # User cancelled save dialog
             Logger.log("d", "User cancelled save for HTML export")
             return
+        self._export_fail = False
         
         try:
-            with open(output_filename, "w", encoding="utf-8") as page:
-                page.write(self._assemble_html())
+            if not self._export_fail:
+                with open(output_filename, "w", encoding="utf-8") as page:
+                    page.write(self._assemble_html())
         except Exception as e:
             Logger.logException("e", f"Exception while trying to save HTML settings: {e}")
             Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
@@ -188,7 +194,7 @@ class HTMLSettingsExportReborn(Extension):
     def _make_tr_2_cells(self, key: str, value: Any, row_class: str = None) -> str:
         """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
-        return f'<tr{("class " + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="w-50">{key}</td><td>{value}</td></tr>'
+        return f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}><td>{key}</td><td>{value}</td></tr>'
 
     def _make_ol_from_list(self, items: list, base_indent_level: int = 0, prefix: str = "", suffix: str = "", return_single_item: bool = True) -> str:
         """Makes a HTML <ol> from a list of items and indents it."""
@@ -279,15 +285,18 @@ class HTMLSettingsExportReborn(Extension):
                 start_html = start.read()
         except Exception:
             Logger.logException("e", "Exception trying to read html_start.html")
+            self._export_fail = True
             return ""
         start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
                                 .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
                                 .replace(self.HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS, catalog.i18nc("@button:local_changes", "Show/hide user changed settings"))
                                 .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS, catalog.i18nc("@button:visible_settings", "Show/hide visible settings"))
-                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Show/hide unused settings")))
+                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Show/hide unused settings"))
+                                .replace(self.HTML_REPLACEMENT_PROJECT_TITLE, print_information.jobName)
+                                .replace(self.HTML_REPLACEMENT_PROFILE_NAME, global_stack.qualityChanges.getMetaData().get("name", "")))
 
         output_html.append(start_html)
-        output_html.append(indent('<table width="100%" "border="1" cellpadding="3">', info_indent - 1))
+        output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
         # Project name
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
         # Thumbnail
@@ -346,7 +355,7 @@ class HTMLSettingsExportReborn(Extension):
         #    for category in settings_categories:
         #        output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
         for category in settings_categories:
-            output_html.append('<table class="category_row"><tr>')
+            output_html.append('<table class="category-row"><tr>')
             for i, stack in enumerate(extruder_stack):
                 output_html.append('<td>')
                 output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
@@ -354,7 +363,7 @@ class HTMLSettingsExportReborn(Extension):
             output_html.append('</tr></table>')
 
         # Get settings for each extruder
-        output_html.append('<table class="extruder_row"><tr>')
+        output_html.append('<table class="extruder-row"><tr>')
         for i, extruder in enumerate(extruder_stack):
             output_html.append('<td>')
             output_html.extend(self._get_category_settings("machine_settings", extruder, info_indent -1, i, i18n_extruder_catalog, True))
@@ -362,7 +371,7 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append('</tr></table>')
 
         # Get post-processing scripts
-        output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), info_indent - 1))
+        output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), info_indent - 1, "post_processing_scripts"))
 
         scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
         if scripts_list :
@@ -394,6 +403,7 @@ class HTMLSettingsExportReborn(Extension):
                 end_html = end.read()
         except Exception:
             Logger.logException("e", "Exception trying to read html_end.html")
+            self._export_fail = True
             return ""
         output_html.append(end_html)
         
@@ -427,37 +437,37 @@ class HTMLSettingsExportReborn(Extension):
 
         return False
 
-    def _make_category_header(self, text: str, base_indent: int, open: bool = True):
-        header_string = f'<details{" open" if open else ""}><summary><h2>{text}</h2></summary>'
+    def _make_category_header(self, text: str, base_indent: int, category_key: str, details_open: bool = True):
+        header_string = f'<details class="collapsible-setting setting-{category_key}" {" open" if details_open else ""}><summary class="category-header"><h2>{text}</h2></summary>'
         return f'{indent(header_string, base_indent)}\n{indent('<table class="category">', base_indent + 1)}'
 
     def _make_category_setting_row(self, setting: str, value: str, indent_level: str, row_class: str = "", value_class: str = "", child_depth: int = 0) -> str:
         # Gotta use chr(34) " there or else it'd be a triple double quote
-        row_string = f'<tr class="{row_class}"><td>{self.CHILD_SPACER * child_depth}{setting}</td><td{(" class = " + value_class + chr(34)) if value_class else ""}>{value}</td></tr>'
+        row_string = f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="setting-label">{self.CHILD_SPACER * child_depth}{setting}</td><td class="setting-value{(" " + value_class) if value_class else ""}">{value}</td></tr>'
         return f'{indent(row_string, indent_level)}'
 
     def _make_category_footer(self, base_indent: int):
         return f'{indent('</table>', base_indent + 1)}\n{indent('</details>', base_indent)}'
 
-    def _get_category_settings(self, category_name: str, stack: ContainerStack, base_indent_level: int, extruder_index: int, local_catalog: i18nCatalog, children_local_stack: bool = False) -> list[str]:
+    def _get_category_settings(self, category_key: str, stack: ContainerStack, base_indent_level: int, extruder_index: int, local_catalog: i18nCatalog, children_local_stack: bool = False) -> list[str]:
   
         category_output: list[str] = []
 
         # Apparently necessary to get translated 
-        translation_key = category_name + " label"
+        translation_key = category_key + " label"
         # Set extruder prefix (or lack thereof for single extruder machines)
         extruder_prefix: str = f'{catalog.i18nc("@label", "Extruder")} {(extruder_index + 1)}: ' if extruder_index >= 0 else ""
 
         # See if category should be open by default (almost all of the time... yes)
         category_open: bool = True
-        if self._single_extruder and category_name == "dual":
+        if self._single_extruder and category_key == "dual":
             category_open = False
 
         # Get translated category name... just make sure we're in a category
-        if stack.getProperty(category_name, "type") == "category":
-            category_label = stack.getProperty(category_name, "label")
+        if stack.getProperty(category_key, "type") == "category":
+            category_label = stack.getProperty(category_key, "label")
             category_translated = local_catalog.i18nc(translation_key, category_label)
-            category_output.append(self._make_category_header(extruder_prefix + category_translated, base_indent_level, category_open))
+            category_output.append(self._make_category_header(extruder_prefix + category_translated, base_indent_level, category_key, category_open))
         else:
             # This should only be run on the top level of categories
             return []
@@ -465,12 +475,12 @@ class HTMLSettingsExportReborn(Extension):
         setting_indent_level = base_indent_level + 2
 
         if children_local_stack:
-            children_list = stack.getSettingDefinition(category_name).children
+            children_list = stack.getSettingDefinition(category_key).children
         else:
-            children_list = self._application.getGlobalContainerStack().getSettingDefinition(category_name).children
+            children_list = self._application.getGlobalContainerStack().getSettingDefinition(category_key).children
         
         for child in children_list:
-            category_output.extend(self._list_category_setting(stack, child.key, setting_indent_level, local_catalog, 0, children_local_stack, category_name))
+            category_output.extend(self._list_category_setting(stack, child.key, setting_indent_level, local_catalog, 0, children_local_stack, category_key))
 
         category_output.append(self._make_category_footer(base_indent_level))
 
@@ -500,8 +510,24 @@ class HTMLSettingsExportReborn(Extension):
         setting_string: str = ""
         setting_class: str = ""
 
-        match str(setting_type):
-            case "float":
+        #translated_label = key + " " + setting_type
+
+        setting_type_str = str(setting_type)
+        match setting_type_str:
+            case "optional_extruder":
+                # If it's not -1 it seems to be stringly typed
+                if setting_value == -1:
+                    setting_string = catalog.i18nc("@setting:unchanged", "Not overridden")
+                else:
+                    setting_value = int(setting_value) + 1
+                    setting_string = str(setting_value)
+
+            case "extruder":
+                setting_value = int(setting_value) + 1
+                setting_string = str(setting_value)
+
+            case "int" | "float":
+                # Pretty sure all the extruder ones are one of the above types but just in case
                 if not self._single_extruder and "extruder_nr" in key:
                     if setting_value == -1:
                         setting_string = catalog.i18nc("@setting:unchanged", "Not overridden")
@@ -509,7 +535,10 @@ class HTMLSettingsExportReborn(Extension):
                         setting_value += 1
                         
                 if setting_string == "":  # Skip all this if I set it to a string earlier
-                    setting_string = str(float(round(setting_value, 4))).rstrip("0").rstrip(".")  # Drop trailing zeroes and decimal point if it's a whole number
+                    if setting_type_str == "float":
+                        setting_string = str(float(round(setting_value, 4))).rstrip("0").rstrip(".")  # Drop trailing zeroes and decimal point if it's a whole number
+                    else:
+                        setting_string = str(int(setting_value))
 
                     minimum_value = stack.getProperty(key, "minimum_value")
                     maximum_value = stack.getProperty(key, "maximum_value")
@@ -536,6 +565,7 @@ class HTMLSettingsExportReborn(Extension):
                         Logger.log("e", f"Error trying to convert minimum/maximum value for {key}: {e}")
                         Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
                         text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
+                        self._export_fail = True
             case "enum":
                 option_translation_key = key + "option" + str(setting_value)
                 options = stack.getProperty(key, "options")

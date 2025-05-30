@@ -1,12 +1,175 @@
 <!DOCTYPE html>
 <html>
-    <meta charset='UTF-8'>a
+    <meta charset='UTF-8'>
     <head>
         <title>$$$TITLE$$$</title>
-        <link rel="stylesheet" href="style.css">
+        <style>
+            /* Set sizes and calculate them so I can reuse them */
+            :root {
+                --label-col-width: 310px;
+                --value-col-width: 135px;
+                --category-cell-spacing: 5px;
+
+                --category-table-width: calc(var(--label-col-width) + var(--value-col-width) + (var(--category-cell-spacing) * 2))
+            }
+            /* Use box sizing so I don't have to calculate things myself */
+            html {
+                box-sizing: border-box;
+            }
+            *, *::before, *::after {
+                box-sizing: inherit;
+            }
+
+            /* Default Times New Roman is ugly */
+            body { 
+                font-family: Tahoma, Arial, sans-serif;
+                margin-top: 0; /* Or else sticky header moves when you first scroll */
+            }
+
+            /* Set up sticky header at top */
+            .sticky-header {
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                width: 100%;
+                background-color: #FFFFFF;
+                color: #000000;
+            }
+            /* Set maximum width of header content */
+            .header-content-wrapper {
+                max-width: 1200px;
+                margin: 0 auto; /* Centre content */
+                padding: 0 40px; /* Make sure content doesn't hug the sides */
+            }
+            /* Use Flexbox for even spacing on each row and have padding to separate */
+            .header-row {
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            /* Set up text to go to each side */
+            .header-top-row {
+                justify-content: space-between;
+            }
+            /* Spread buttons more evenly */
+            .header-bottom-row {
+                justify-content: space-evenly;
+                margin-bottom: 0; /* It's on the bottom */
+            }
+            /* Make header text a bit more noticeable */
+            .header-text {
+                font-size: 150%;
+                font-weight: bold;
+            }
+            /* Style buttons in header */
+            .setting-visibility {
+                background-color: #AAA;
+                color: #000;
+                border: 1px solid #777;
+                padding: 8px 15px;
+                font-size: 1.1em;
+            }
+            /* Change button background colour on hover */
+            .setting-visibility:hover {
+                background-color: #BBB;
+            }
+            /* Add a bit of room between categories */
+            .category-row { margin-bottom: 20px; }
+            /* Add a bit of room between each extruder's settings */
+            .category-row td { margin-right: 15px; }
+
+            /* Set up table spacing so I tell them what to do, not the other way around */
+            table.category {
+                width: var(--category-table-width);
+                border-collapse: collapse;
+                border-spacing: 0;
+                padding: 0;
+                border: none;
+            }
+
+            /* Set alternate row colouring early so specific classes will override it */
+            table.category tr:nth-child(even) { background-color: #EEEEEE; }
+
+            /* Specific row types that will override the above */
+            table.category tr.disabled { background-color: #CFCFCF; color: #717171; }
+            /* There can be large blocks of disabled settings so alternate their colours */
+            table.category tr.disabled:nth-child(even) { background-color: #C0C0C0; }
+            table.category tr.local { background-color: #77DD77; }
+            table.category tr.visible { background-color: #CCBB92; }
+
+            /* Cell types for values out of bounds */
+            td.error { background-color: #CC5555; color: #444; }
+            td.warning { background-color: #FFEE92; color: #444 }
+            /* Slightly darker backgrounds for darker rows */
+            td.error:nth-child(even) { background-color: #AA4444; }
+            td.warning:nth-child(even) { background-color: #EEBB80; }
+
+            /* Hide row types depending on user selection */
+            body.hide-disabled tr.disabled { display: none; }
+            body.hide-local tr.local { display: none; }
+            body.hide-visible tr.visible { display: none; }
+
+            /* Make <summary> display a pointer (like a link) so it's
+                obvious it can be clicked and set background colour */
+            summary.category-header { 
+                cursor: pointer;
+                background-color: #99F;
+                width: var(--category-table-width);
+            }
+
+            /* Make sure <summary> elements used for toggling categories are on one line */
+            summary.category-header > * { display: inline-block; }
+
+            /* Replace default open/close marker because it uses the right arrow
+                we're using for the child-spacer */
+            details:first-of-type summary::marker {
+                content: " + ";
+                font-family: monospace;
+                font-weight: bold;
+                font-size: 300%;
+            }
+
+            details[open]:first-of-type summary::marker {
+                content: " - ";
+            }
+
+            /* Centre the thumbnail */
+            img.thumbnail {
+                display: block;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            /* Make child indicator wide enough to be easily parsed */
+            div.child-spacer { 
+                width: 2em;
+                display: inline-block;
+            }
+
+            /* Width for setting label and value, taking box sizing into account for padding */
+            td.setting-label {
+                width: calc(var(--label-col-width) + var(--category-cell-spacing));
+                padding-right: var(--category-cell-spacing);
+            }
+            td.setting-value {
+                width: calc(var(--value-col-width) + var(--category-cell-spacing));
+                padding-left: var(--category-cell-spacing)
+            }
+        </style>
     </head>
     <body lang="$$$LANG$$$">
-        <button id="enabled_settings">$$$UNUSED_SETTINGS$$$</button><br>
-        <!--<button id="visible_settings">$$$VISIBLE_SETTINGS$$$</button><br>
-        I'm not sure if setting visibility is hugely important. -->
-        <button id="local_changes">$$$LOCAL_CHANGE_SETTINGS$$$</button><br>
+        <!-- Top bar with title, profile and buttons -->
+        <div class="sticky-header">
+            <div class="header-content-wrapper">
+                <div class ="header-row header-top-row">
+                    <span class="header-text project-name">$$$PROJECT_NAME$$$</span>
+                    <span class="header-text profile-name">$$$PROFILE_NAME$$$</span>
+                </div>
+                <div class="header-row header-bottom-row">
+                    <button class="setting-visibility" id="enabled_settings">$$$UNUSED_SETTINGS$$$</button>
+                    <!--<button class="setting-visibility" id="visible_settings">$$$VISIBLE_SETTINGS$$$</button><br>
+                    I'm not sure if setting visibility is hugely important. -->
+                    <button class="setting-visibility" id="local_changes">$$$LOCAL_CHANGE_SETTINGS$$$</button>
+                </div>
+            </div>
+        </div>

@@ -11,6 +11,34 @@
             setupToggleButton("enabled_settings", "hide-disabled");
             setupToggleButton("local_changes", "hide-local");
             setupToggleButton("visible_settings", "hide-visible");
+
+            document.addEventListener('DOMContentLoaded', function() {
+                // Get all details elements to be synced
+                const allCollapsibleSettings = document.querySelectorAll('details.collapsible-setting');
+
+                allCollapsibleSettings.forEach(detailsElement => {
+                    detailsElement.addEventListener('toggle', function(event) {
+                        const isOpen = this.open;
+                        const classList = Array.from(this.classList); // Convert DOMTokenList to array
+
+                        // Find the specific setting class (e.g., 'setting-resolution', 'setting-walls')
+                        // The unique class always starts with 'setting-'
+                        const specificSettingClass = classList.find(cls => cls.startsWith('setting-'));
+
+                        if (specificSettingClass) {
+                            // Query for all details elements that share this specific setting class
+                            const siblingsToSync = document.querySelectorAll(`details.${specificSettingClass}`);
+
+                            // Sync the state of all matching sibling details elements
+                            siblingsToSync.forEach(sibling => {
+                                if (sibling !== this) { // Don't re-toggle the one that just triggered the event
+                                    sibling.open = isOpen;
+                                }
+                            });
+                        }
+                    });
+                });
+            });
         </script>
     </body>
 </html>
