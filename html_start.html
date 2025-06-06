@@ -6,11 +6,12 @@
         <style>
             /* Set sizes and calculate them so I can reuse them */
             :root {
-                --label-col-width: 310px;
+                --label-col-width: 380px;
                 --value-col-width: 135px;
                 --category-cell-spacing: 5px;
 
-                --category-table-width: calc(var(--label-col-width) + var(--value-col-width) + (var(--category-cell-spacing) * 2))
+                --category-table-width: calc(var(--label-col-width) + var(--value-col-width) + (var(--category-cell-spacing) * 2));
+                --posts-settings-width: calc(var(--value-col-width) * 2);
             }
             /* Use box sizing so I don't have to calculate things myself */
             html {
@@ -23,7 +24,21 @@
             /* Default Times New Roman is ugly */
             body { 
                 font-family: Tahoma, Arial, sans-serif;
-                margin-top: 0; /* Or else sticky header moves when you first scroll */
+                margin: 0;
+                background-color: #f0f0f0; /* Colour for the side boxes/background */
+                padding-bottom: 20px; /* Don't need top padding because header is sticky */
+                min-height: 100vh; /* Fill viewport height */
+            }
+
+            /* Styles for the main content area */
+            .main-content-wrapper {
+                max-width: 800px; /* Adjust this value to your preferred content width */
+                width: 90%; /* Use a percentage for responsiveness, so it shrinks on smaller screens */
+                background-color: #ffffff; /* White background for content */
+                padding: 30px; /* Padding inside the content box */
+                box-shadow: 0 0 15px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow for depth */
+                border-radius: 8px; /* Slightly rounded corners for a softer look */
+                margin: 20px auto; /* Centers the block horizontally and adds vertical margin */
             }
 
             /* Set up sticky header at top */
@@ -34,6 +49,7 @@
                 width: 100%;
                 background-color: #FFFFFF;
                 color: #000000;
+                padding-bottom: 10px;
             }
             /* Set maximum width of header content */
             .header-content-wrapper {
@@ -49,12 +65,12 @@
             }
             /* Set up text to go to each side */
             .header-top-row {
-                justify-content: space-between;
+                justify-content: space-evenly;
             }
             /* Spread buttons more evenly */
             .header-bottom-row {
                 justify-content: space-evenly;
-                margin-bottom: 0; /* It's on the bottom */
+                margin-bottom: 0px; /* It's on the bottom */
             }
             /* Make header text a bit more noticeable */
             .header-text {
@@ -73,6 +89,7 @@
             .setting-visibility:hover {
                 background-color: #BBB;
             }
+
             /* Add a bit of room between categories */
             .category-row { margin-bottom: 20px; }
             /* Add a bit of room between each extruder's settings */
@@ -94,27 +111,30 @@
             table.category tr.disabled { background-color: #CFCFCF; color: #717171; }
             /* There can be large blocks of disabled settings so alternate their colours */
             table.category tr.disabled:nth-child(even) { background-color: #C0C0C0; }
-            table.category tr.local { background-color: #77DD77; }
+            table.category tr.local, table.category td.local { background-color: #77DD77; }
             table.category tr.visible { background-color: #CCBB92; }
 
             /* Cell types for values out of bounds */
             td.error { background-color: #CC5555; color: #444; }
             td.warning { background-color: #FFEE92; color: #444 }
             /* Slightly darker backgrounds for darker rows */
-            td.error:nth-child(even) { background-color: #AA4444; }
-            td.warning:nth-child(even) { background-color: #EEBB80; }
+            tr:nth-child(even) > td.error { background-color: #BB4444; }
+            tr:nth-child(even) > td.warning { background-color: #dcd083; }
+            tr:nth-child(even).local, tr:nth-child(even) > td.local { background-color: #5B5}
 
             /* Hide row types depending on user selection */
             body.hide-disabled tr.disabled { display: none; }
-            body.hide-local tr.local { display: none; }
+            body.hide-local tr:not(.local, .some-local) { display: none; }
+            body.hide-local details:not(:has(tr:not(.local, .some-local))) { display: none; } /* Hide <details> block if it contains no user changed settings */
             body.hide-visible tr.visible { display: none; }
 
             /* Make <summary> display a pointer (like a link) so it's
                 obvious it can be clicked and set background colour */
             summary.category-header { 
                 cursor: pointer;
-                background-color: #99F;
+                background-color: rgb(126, 151, 227);
                 width: var(--category-table-width);
+                padding-left: 15px;
             }
 
             /* Make sure <summary> elements used for toggling categories are on one line */
@@ -122,15 +142,25 @@
 
             /* Replace default open/close marker because it uses the right arrow
                 we're using for the child-spacer */
-            details:first-of-type summary::marker {
+            details summary::marker {
                 content: " + ";
                 font-family: monospace;
                 font-weight: bold;
                 font-size: 300%;
+                margin-left: 20px;
             }
 
-            details[open]:first-of-type summary::marker {
+            details[open] summary::marker {
                 content: " - ";
+            }
+
+            details[open] summary.category-header {
+                background-color: rgb(139, 157, 209)
+            }
+
+            /* Add a gap between details settings. */
+            details{
+                margin-top: 20px;
             }
 
             /* Centre the thumbnail */
@@ -155,6 +185,9 @@
                 width: calc(var(--value-col-width) + var(--category-cell-spacing));
                 padding-left: var(--category-cell-spacing)
             }
+            td.posts-settings{
+                width: calc(var(--posts-settings-width) + var(--category-cell-spacing));
+            }
         </style>
     </head>
     <body lang="$$$LANG$$$">
@@ -173,3 +206,4 @@
                 </div>
             </div>
         </div>
+        <div class="main-content-wrapper">

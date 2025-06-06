@@ -13,58 +13,58 @@
 #   - What little Qt is in here, dropped Qt 5 support because I have enough on my hands as it is. This makes Cura 5.0 a minimum.
 #   - Removed autosave setting. Generating this is a somewhat fragile process and I really don't want to get in the way of gcode saving.
 #   - Children of a setting now use a graphical indicator to indicate their depth in the tree instead of increasing indents (hard to tell apart) which used CSS classes numbered [l,2,3,4,5] (look at the first one)
-#   - HTML output is now generated in advance and written all at once instead of literally thousands of individual writes over time locking up file I/O and the GIL.
+#   - HTML output is now generated in advance and written all at once instead of literally thousands of individual writes over time locking up file I/O.
 #   - Large chunks of HTML now loaded from individual files instead of ungainly string literals.
 #   - Managed to make those large chunks localisable despite that.
 #   - Cleaned up CSS, formatting it and removing unused classes. And adding new, used ones.
 #   - Output HTML markup now much more clean with things like indents and new lines. And being valid.
 #   - Generated HTML now consistently follows HTML5 standards instead of using deprecated elements and having traces of XHTML.
-#   - Removed unnecessary tags and elements from HTML output that only work because of how forgiving browsers are.
+#   - Removed unnecessary tags and elements from HTML output that only worked because of how forgiving browsers are.
 #   - Date/time practically guaranteed to be in system locale's format instead of a hard coded format.
+#   - Rounded values like "material cost" to be human-friendly. If you care about a millionth of a cent's worth of filament, hire an accountant to care for you.
 #   - Thumbnail generation now uses "last slice" as a primary source and falls back to trying to take a Snapshot (which I have found unreliable) as a backup.
 #   - Setting sections can now be collapsed to make scrolling through the whole thing less of a slog.
-#   - Now shows all categories of settings for each extruder, including the ones where *most* (but not all) of the settings are shared.
+#   - Now shows all categories of settings for each extruder, including the ones where *most* (but not all) of the settings are shared (except the "Dual Extrusion" settings).
+#   - Completely hides (not just disables) multi extruder settings like extruder number and prime towers when using a single extruder machine. I said all categories, not all settings.
+#   - Added zebra striping to rows to aid readability.
 #   - Lists of settings should now look "easy to read" instead of "like a spreadsheet".
 #   - Significantly improved error handling in the now much less likely situation there's a problem.
 #   - Added "warning" colouring for values in addition to errors.
-#   - Error and warning colouring should now look more consistent.
-#   - Completely hides (not just disables) multi extruder settings like extruder number and prime towers when using a single extruder machine.
+#   - Error and warning colouring should now look more consistent (and yet different for alternating positions).
 #   - Settings for all extruders are now in a single table per category for added readability and less duplicity. I know exactly what that word means. I chose it carefully.
+#   - Defaults to (but doesn't overwrite, because I like don't like messing with other peoples' things) Cura's last used save folder.
+#   - Changed "show/hide user changed settings" button so that it toggles showing **only** user changes.
+#   - Now uses Python standard library functions to both check for a web browser and open page in it instead of a mix of Python and Qt.
 
-import os
-import datetime
-from dataclasses import InitVar, dataclass, field
-import locale
-import platform
-import tempfile
-import html
-import webbrowser
 import configparser  # The script lists are stored in metadata as serialised config files.
+import datetime
+import html
+import locale
+import os
+import webbrowser
 
+from dataclasses import InitVar, dataclass, field
 from datetime import datetime
-from typing import cast, Dict, List, Optional, Tuple, Any, Set
-
-from PyQt6.QtCore import Qt, QObject, QBuffer, QUrl
-from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import QFileDialog
+from typing import Any, Optional
 
 from cura.CuraApplication import CuraApplication
 from cura.CuraVersion import CuraVersion
-from cura.Utils.Threading import call_on_qt_thread
 from cura.Snapshot import Snapshot
-
+from cura.Utils.Threading import call_on_qt_thread
+from PyQt6.QtCore import QBuffer
+from PyQt6.QtWidgets import QFileDialog
 from UM.Extension import Extension
-from UM.Settings.Models.SettingPreferenceVisibilityHandler import SettingPreferenceVisibilityHandler
+from UM.i18n import i18nCatalog
 from UM.Logger import Logger
 from UM.Message import Message
-from UM.Preferences import Preferences
 from UM.Qt.Duration import DurationFormat
-from UM.Scene.Selection import Selection
-from UM.Settings.InstanceContainer import InstanceContainer
-from UM.Settings.ContainerStack import ContainerStack
-
 from UM.Resources import Resources
-from UM.i18n import i18nCatalog
+from UM.Scene.Selection import Selection
+from UM.Settings.ContainerStack import ContainerStack
+from UM.Settings.InstanceContainer import InstanceContainer
+from UM.Settings.Models.SettingPreferenceVisibilityHandler import \
+    SettingPreferenceVisibilityHandler
+
 
 @dataclass
 class CategorySetting:
@@ -82,9 +82,8 @@ class CategorySetting:
 
     extruder_count: InitVar[int] = 1
 
-    def __post_init__(self, key: str, extruder_count: int):
+    def __post_init__(self, extruder_count: int):
         """Pre-populate lists so no pesky IndexErrors crop up"""
-        self.key = key
         self.value = [""] * extruder_count
         self.css_class = [""] * extruder_count
         self.error_class = [""] * extruder_count
@@ -130,6 +129,7 @@ class HTMLSettingsExportReborn(Extension):
         self._preferences = self._application.getPreferences()
 
         self._modified_global_settings: list = []
+        self._modified_extruder_settings: list = []
         self._visible_settings: list = []
 
         self._plugin_dir = os.path.dirname(__file__)
@@ -152,14 +152,25 @@ class HTMLSettingsExportReborn(Extension):
         self._export_fail = False
         
         try:
+            output_page = self._assemble_html()
             if not self._export_fail:
                 with open(output_filename, "w", encoding="utf-8") as page:
-                    page.write(self._assemble_html())
+                    page.write(output_page)
+            else:
+                raise Exception("self._export_fail triggered")
         except Exception as e:
             Logger.logException("e", f"Exception while trying to save HTML settings: {e}")
             Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
-                    text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
+                    text = catalog.i18nc("@export_exception", "Error while trying to save HTML settings. Please check log file.")).show()
+            return
         Logger.log("i", f"HTML settings export successful to {output_filename}")
+
+        try:
+            webbrowser.open_new_tab(output_filename)
+        except Exception as e:
+            Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
+                    text = catalog.i18nc("@export_browser_fail", "Could not open a web browser to display output file.\nPlease navigate to where you saved the file and open it manually.")).show()
+            Logger.log("e", f"HTMLSettingsExportReborn could not open a web browser to display output file {output_filename}\n{e}")
 
     def _get_file_save_path(self, suggested_name: str = "cura settings.html") -> Optional[str]:
         dialog = QFileDialog()
@@ -220,10 +231,10 @@ class HTMLSettingsExportReborn(Extension):
             
         QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))"""
         
-    def _make_tr_2_cells(self, key: str, value: Any, indent: int = 0, row_class: str = None) -> str:
+    def _make_tr_2_cells(self, key: str, value: Any, tr_indent: int = 0, row_class: str = None) -> str:
         """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
-        return indent(f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}><td>{key}</td><td>{value}</td></tr>', indent)
+        return indent(f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="two-column-left">{key}</td><td class="two-column-right">{value}</td></tr>', tr_indent)
 
     def _make_ol_from_list(self, items: list, base_indent_level: int = 0, prefix: str = "", suffix: str = "", return_single_item: bool = True) -> str:
         """Makes a HTML <ol> from a list of items and indents it."""
@@ -248,6 +259,7 @@ class HTMLSettingsExportReborn(Extension):
         self._single_extruder = self._extruder_count == 1
 
         self._modified_global_settings = global_stack.getTop().getAllKeys()
+        self._modified_extruder_settings = [extruder.getTop().getAllKeys() for extruder in extruder_stack]
         self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()
         
         output_html: list[str] = []
@@ -303,16 +315,16 @@ class HTMLSettingsExportReborn(Extension):
 
         
         # Indent level for rows in the top table
-        # html > body > table
-        info_indent: int = 3
+        # html > body > div > table
+        info_indent: int = 4
 
         # Indent level for each <details> block
-        # html > body
-        details_indent: int = 2
+        # html > body > div
+        details_indent: int = 3
 
         # Indent level for each setting row
-        # html > body > details > table > tbody
-        setting_indent: int = 5
+        # html > body > div > details > table > tbody
+        setting_indent: int = 6
 
 
         # Add header with CSS and start of page
@@ -330,9 +342,9 @@ class HTMLSettingsExportReborn(Extension):
             profile_name = catalog.i18nc("@page:missing_profile_name", "Default Profile")
         start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
                                 .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
-                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS, catalog.i18nc("@button:local_changes", "Show/hide user changed settings"))
-                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS, catalog.i18nc("@button:visible_settings", "Show/hide visible settings"))
-                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Show/hide unused settings"))
+                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS, catalog.i18nc("@button:local_changes", "Toggle only user changes"))
+                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS, catalog.i18nc("@button:visible_settings", "Toggle visible settings"))
+                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Toggle disabled settings"))
                                 .replace(self.HTML_REPLACEMENT_PROJECT_TITLE, print_information.jobName)
                                 .replace(self.HTML_REPLACEMENT_PROFILE_NAME, profile_name))
 
@@ -414,11 +426,11 @@ class HTMLSettingsExportReborn(Extension):
             output_html.append(self._make_category_setting_row(setting, setting_indent))
         output_html.append(self._make_category_footer(details_indent))
 
-        # Get post-processing scripts
-        output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), details_indent, "post_processing_scripts"))
 
         scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
         if scripts_list :
+            # Get post-processing scripts
+            output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), details_indent, "post_processing_scripts", two_column=True, two_column_titles=[catalog.i18nc("@settings:post_name", "Post-processor name"), catalog.i18nc("@settings:post_settings", "Post-processor settings")]))
             for script_str in scripts_list.split("\n"):
                 if not script_str:
                     continue
@@ -435,8 +447,8 @@ class HTMLSettingsExportReborn(Extension):
                         continue
                     setting_param = ""
                     for setting_key, setting_value in settings.items():
-                        setting_param += f'{setting_key}: {setting_value}<br>'
-                    output_html.append(self._make_tr_2_cells(html.escape(script_name), html.escape(setting_param.rstrip("<br>"))    , info_indent + 1))
+                        setting_param += f'{html.escape(setting_key)}: {html.escape(setting_value)}<br>'  # Have to escape it here because I'm deliberately adding the <br>s
+                    output_html.append(self._make_tr_2_cells(html.escape(script_name), setting_param.rstrip("<br>"), info_indent + 1))
 
             output_html.append(self._make_category_footer(details_indent))
 
@@ -481,18 +493,36 @@ class HTMLSettingsExportReborn(Extension):
 
         return False
 
-    def _make_category_header(self, text: str, base_indent: int, category_key: str, details_open: bool = True) -> str:
+    def _make_category_header(self, text: str, base_indent: int, category_key: str, details_open: bool = True, two_column: bool = False, two_column_titles: list[str] = None) -> str:
         category_header: list[str] = []
-        category_header.append(indent(f'<details class="collapsible-setting setting-{category_key}" {" open" if details_open else ""}><summary class="category-header"><h2>{html.escape(text)}</h2></summary>', base_indent))
+        category_header.append(indent(f'<details class="collapsible-setting setting-{category_key}"{" open" if details_open else ""}>', base_indent))
+        category_header.append(indent(f'<summary class="category-header"><h2>{html.escape(text)}</h2></summary>', base_indent + 1))
         category_header.append(indent('<table class="category">', base_indent + 1))
-        category_header.append(indent('<thead>'), base_indent + 2)
-        category_header.append(indent('<tr>'), base_indent + 3)
-        category_header.append(indent(f'<td>{catalog.i18nc("@setting:label", "Setting")}</td>', base_indent + 4))
-        for i in range(self._extruder_count):
-            category_header.append(indent(f'<td>{catalog.i18nc("@settings:extruder", "Extruder")} #{i + 1}</td>', base_indent + 4))
-        category_header.append(indent('</tr>'), base_indent + 3)
-        category_header.append(indent('</thead>'), base_indent + 2)
-        category_header.append(indent('<tbody>'), base_indent + 2)
+        category_header.append(indent('<thead>', base_indent + 2))
+        category_header.append(indent('<tr>', base_indent + 3))
+        # I think this is the most defensive thing I've ever written
+        if two_column:
+            if two_column_titles is None or not isinstance(two_column_titles, list):
+                two_column_titles = ["", ""]
+            else:
+                match len(two_column_titles):
+                    case 0:
+                        two_column_titles = ["", ""]
+                    case 1:
+                        two_column_titles.append("")
+                    case _:
+                        two_column_titles = two_column_titles[:2]  # Handles len() == 2 fine
+            # Ensure all elements are strings, replacing non-strings with empty strings
+            two_column_titles = [item if isinstance(item, str) else "" for item in two_column_titles]
+            for title in two_column_titles:
+                category_header.append(indent(f'<th>{html.escape(title)}</th>', base_indent + 4))
+        else:
+            category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@setting:label", "Setting"))}</th>', base_indent + 4))
+            for i in range(self._extruder_count):
+                category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@settings:extruder", "Extruder"))} #{i + 1}</th>', base_indent + 4))
+        category_header.append(indent('</tr>', base_indent + 3))
+        category_header.append(indent('</thead>', base_indent + 2))
+        category_header.append(indent('<tbody>', base_indent + 2))
         return "\n".join(category_header)
 
     def _make_category_setting_row(self, setting: CategorySetting, base_indent: int = 0) -> str:
@@ -501,19 +531,24 @@ class HTMLSettingsExportReborn(Extension):
         row_css_class = self._get_css_row_class(setting.css_class)
         category_setting_html_lines: list[str] = []
         # Gotta use chr(34) " there or else it'd be a triple double quote
-        category_setting_html_lines.append(indent(f'<tr{(" class=" + chr(34) + {row_css_class} + chr(34)) if row_css_class else ""}>'), base_indent)
+        category_setting_html_lines.append(indent(f'<tr{(" class=" + chr(34) + row_css_class + chr(34)) if row_css_class else ""}>', base_indent))
         cell_tooltip = setting.internal_representation()
-        category_setting_html_lines.append(indent(f'<td title="{html.escape(cell_tooltip)}">{html.escape(setting.label)}</td>', base_indent + 1))
+        child_prefix = self.CHILD_SPACER * setting.child_level
+        category_setting_html_lines.append(indent(f'<td title="{html.escape(cell_tooltip)}" class="setting-label">{child_prefix}{html.escape(setting.label)}</td>', base_indent + 1))
         for i, value in enumerate(setting.value):
-            cell_class = setting.error_class[i] if setting.error_class[i] else ""
-            child_prefix = self.CHILD_SPACER * setting.child_level
+            if setting.error_class[i]:
+                cell_class = setting.error_class[i]
+            elif setting.css_class[i]:
+                cell_class = setting.css_class[i]
+            else:
+                cell_class = ""
             class_tooltip = self._css_class_to_human_readable(cell_class if cell_class else row_css_class)
-            display_value = html.escape(value).replace("\n", "<br>")
-            category_setting_html_lines.append(indent(f'<td{" class=" + chr(34) + cell_class + chr(34) if cell_class else ""} title="{html.escape(class_tooltip)}">{child_prefix}{display_value}</td>', base_indent + 1))
-        category_setting_html_lines.append(indent('</tr>'), base_indent)
+            display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")
+            category_setting_html_lines.append(indent(f'<td class="{cell_class + " setting-value" if cell_class else "setting-value"}" title="{html.escape(class_tooltip)}">{display_value}</td>', base_indent + 1))
+        category_setting_html_lines.append(indent('</tr>', base_indent))
         for child in setting.children:
             if child:  # Shouldn't be None, but in case it is
-                category_setting_html_lines.extend(self._make_category_setting_row(child, base_indent))
+                category_setting_html_lines.append(self._make_category_setting_row(child, base_indent))
         return "\n".join(category_setting_html_lines)
 
     def _make_category_footer(self, base_indent: int):
@@ -523,12 +558,16 @@ class HTMLSettingsExportReborn(Extension):
         if isinstance(classes, str):
             return classes
 
-        # local > normal > hidden > disabled
-        possible_classes = ("local", "normal", "disabled", "hidden")
+        # local > disabled > hidden > normal
+        possible_classes = ("local", "disabled", "hidden", "normal")
         for possible_class in possible_classes:
-            if possible_class in classes:
+            if all(css_class == possible_class for css_class in classes):
                 return possible_class
-        return "normal"  # One hopes it doesn't come to the fallback
+        for possible_class in possible_classes[:-1]:
+            # We don't want "some-normal"
+            if any(css_class == possible_class for css_class in classes):
+                return f"some-{possible_class}"
+        return "normal"  # Fallback if they're all normal
 
     def _css_class_to_human_readable(self, css_class: str) -> str:
         match css_class:
@@ -575,8 +614,7 @@ class HTMLSettingsExportReborn(Extension):
         return (category_settings, category_translated)
 
     def _get_setting(self, key: str, category_key: str, extruder_stack, local_catalog: i18nCatalog, child_level: int = 0, children_local_stack: bool = False) -> CategorySetting:
-        setting = CategorySetting(key, extruder_count = len(extruder_stack))
-        setting.child_level = child_level
+        setting = CategorySetting(key = key, child_level = child_level, extruder_count = len(extruder_stack))
         
         for i, extruder in enumerate(extruder_stack):
             # Check to see if the value exists and bail if it doesn't
@@ -599,7 +637,7 @@ class HTMLSettingsExportReborn(Extension):
             # Figure out if it needs some special styling
             if not extruder.getProperty(key, "enabled"):
                 css_class = "disabled"
-            elif key in self._modified_global_settings:
+            elif key in self._modified_global_settings or key in self._modified_extruder_settings[i]:
                 css_class = "local"
             elif key not in self._visible_settings:
                 css_class = "hidden"
@@ -662,7 +700,7 @@ class HTMLSettingsExportReborn(Extension):
                         except (ValueError, TypeError) as e:
                             Logger.log("e", f"Error trying to convert minimum/maximum value for {key}: {e}")
                             Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
-                            text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
+                            text = catalog.i18nc("@export_exception", "Error while trying to save HTML settings. Please check log file.")).show()
                             self._export_fail = True
                 case "enum":
                     option_translation_key = key + "option" + str(setting_value)
@@ -696,576 +734,6 @@ class HTMLSettingsExportReborn(Extension):
             setting.children.append(self._get_setting(child_key, category_key, extruder_stack, local_catalog, child_level + 1, children_local_stack))
 
         return setting
-
-    def _get_category_settings(self, category_key: str, stack: ContainerStack, base_indent_level: int, extruder_index: int, local_catalog: i18nCatalog, children_local_stack: bool = False) -> list[str]:
-  
-        category_output: list[str] = []
-
-        # Apparently necessary to get translated 
-        translation_key = category_key + " label"
-        # Set extruder prefix (or lack thereof for single extruder machines)
-        extruder_prefix: str = f'{catalog.i18nc("@label", "Extruder")} {(extruder_index + 1)}: ' if extruder_index >= 0 else ""
-
-        # See if category should be open by default (almost all of the time... yes)
-        category_open: bool = True
-        if self._single_extruder and category_key == "dual":
-            category_open = False
-
-        # Get translated category name... just make sure we're in a category
-        if stack.getProperty(category_key, "type") == "category":
-            category_label = stack.getProperty(category_key, "label")
-            category_translated = local_catalog.i18nc(translation_key, category_label)
-            category_output.append(self._make_category_header(extruder_prefix + category_translated, base_indent_level, category_key, category_open))
-        else:
-            # This should only be run on the top level of categories
-            return []
-
-        setting_indent_level = base_indent_level + 2
-
-        if children_local_stack:
-            children_list = stack.getSettingDefinition(category_key).children
-        else:
-            children_list = self._application.getGlobalContainerStack().getSettingDefinition(category_key).children
-        
-        for child in children_list:
-            category_output.extend(self._list_category_setting(stack, child.key, setting_indent_level, local_catalog, 0, children_local_stack, category_key))
-
-        category_output.append(self._make_category_footer(base_indent_level))
-
-        return category_output
-
-    def _list_category_setting(self, stack, key: str, indent_level: int, local_catalog: i18nCatalog, depth: int = 0, children_local_stack: bool = False, category: str = "") -> list[str]:
-
-        setting_output = []
-        translation_key = key + " label"
-        
-        row_class: str = ""
-        if not stack.getProperty(key, "enabled"):
-            row_class = "disabled"
-        elif key in self._modified_global_settings:
-            row_class = "local"
-        elif key not in self._visible_settings:
-            row_class = "hidden"
-        else:
-            row_class = "normal"
-
-        untranslated_label = stack.getProperty(key, "label")
-        translated_label = local_catalog.i18nc(translation_key, untranslated_label)
-        #translated_label = key
-
-        setting_type = stack.getProperty(key, "type")
-        setting_value = stack.getProperty(key, "value")
-        setting_string: str = ""
-        setting_class: str = ""
-
-        #translated_label = key + " " + setting_type
-
-        setting_type_str = str(setting_type)
-        match setting_type_str:
-            case "optional_extruder":
-                # If it's not -1 it seems to be stringly typed
-                if setting_value == -1:
-                    setting_string = catalog.i18nc("@setting:unchanged", "Not overridden")
-                else:
-                    setting_value = int(setting_value) + 1
-                    setting_string = str(setting_value)
-
-            case "extruder":
-                setting_value = int(setting_value) + 1
-                setting_string = str(setting_value)
-
-            case "int" | "float":
-                # Pretty sure all the extruder ones are one of the above types but just in case
-                if not self._single_extruder and "extruder_nr" in key:
-                    if setting_value == -1:
-                        setting_string = catalog.i18nc("@setting:unchanged", "Not overridden")
-                    else:
-                        setting_value += 1
-                        
-                if setting_string == "":  # Skip all this if I set it to a string earlier
-                    if setting_type_str == "float":
-                        setting_string = str(float(round(setting_value, 4))).rstrip("0").rstrip(".")  # Drop trailing zeroes and decimal point if it's a whole number
-                    else:
-                        setting_string = str(int(setting_value))
-
-                    minimum_value = stack.getProperty(key, "minimum_value")
-                    maximum_value = stack.getProperty(key, "maximum_value")
-                    minimum_value_warning = stack.getProperty(key, "minimum_value_warning")
-                    maximum_value_warning = stack.getProperty(key, "maximum_value_warning")
-
-                    try:  # I'm None checking but it never hurts to have a safety net
-                        if minimum_value is not None:
-                            minimum_value = float(minimum_value)
-                        if maximum_value is not None:
-                            maximum_value = float(maximum_value)
-                        if minimum_value_warning is not None:
-                            minimum_value_warning = float(minimum_value_warning)
-                        if maximum_value_warning is not None:
-                            maximum_value_warning = float(maximum_value_warning)
-
-                        if (minimum_value is not None and setting_value < minimum_value) or \
-                           (maximum_value is not None and setting_value > maximum_value):
-                            setting_class = "error"
-                        elif (minimum_value_warning is not None and setting_value < minimum_value_warning) or \
-                             (maximum_value_warning is not None and setting_value > maximum_value_warning):
-                            setting_class = "warning"
-                    except (ValueError, TypeError) as e:
-                        Logger.log("e", f"Error trying to convert minimum/maximum value for {key}: {e}")
-                        Message(title = catalog.i18nc("@plugin_name", "HTML Settings Export Reborn"),
-                        text = catalog.i18nc("@export_exception", "Exception while trying to save HTML settings. Please check log file.")).show()
-                        self._export_fail = True
-            case "enum":
-                option_translation_key = key + "option" + str(setting_value)
-                options = stack.getProperty(key, "options")
-                untranslated_option = options[str(setting_value)]
-                setting_string = local_catalog.i18nc(option_translation_key, untranslated_option)
-
-            case _:
-                setting_string = str(setting_value).replace("\n", "<br>")
-
-        if self._single_extruder and category != "machine_settings":
-            if self._single_extruder_skip_setting(key, setting_value):
-                return []
-            
-        setting_string += str(stack.getProperty(key, "unit")) if stack.getProperty(key, "unit") else ""
-
-        setting_output.append(self._make_category_setting_row(translated_label, setting_string, indent_level + depth, row_class, setting_class, depth))
-
-        if children_local_stack:
-            children_list = stack.getSettingDefinition(key).children
-        else:
-            children_list = self._application.getGlobalContainerStack().getSettingDefinition(key).children
-
-        for child in children_list:
-            setting_output.extend(self._list_category_setting(stack, child.key, indent_level, local_catalog, depth + 1, children_local_stack))
-
-        return setting_output
-            
-    """def _write(self, stream):
-        # Current File path
-        # Logger.log("d", "stream = %s", os.path.abspath(stream.name))   
-        stream.write(""<!DOCTYPE html>
-            <meta charset='UTF-8'>
-            <head>
-                <title>Cura Settings Export</title>
-                <style>
-                    div.error { background-color: red; }
-                    tr.category td { font-size: 1.1em; background-color: rgb(142,170,219); }
-                    tr.disabled td { background-color: #eaeaea; color: #717171; }
-                    tr.local td { background-color: #77DD77; }
-                    tr.visible td { background-color: #FFEE92; }
-                    body.hide-disabled tr.disabled { display: none; }
-                    body.hide-local tr.visible { display: none; }
-                    body.hide-visible tr.normal { display: none; }
-                    .val { width: 200px; text-align: right; }
-                    .w-10 { width: 10%; }
-                    .w-50 { width: 50%; }
-                    .w-70 { width: 70%; }
-                </style>
-            </head>
-            <body lang=EN>
-        \n"")
-        
-        machine_manager = CuraApplication.getInstance().getMachineManager()        
-        stack = CuraApplication.getInstance().getGlobalContainerStack()
-
-        #global_stack = machine_manager.activeMachine
-        global_stack = CuraApplication.getInstance().getGlobalContainerStack()
-    
-        # modified paramater
-        self._modified_global_parameters = global_stack.getTop().getAllKeys()
-        # Logger.logException("d", "Modified {}".format(self._modified_global_param))
-                
-        TitleTxt = catalog.i18nc("@label","Print settings")
-        ButtonTxt_Enable = catalog.i18nc("@action:label","Show/Hide Parameter Enable")
-        ButtonTxt_Visible = catalog.i18nc("@action:label","Show/Hide Parameter Standard")
-        ButtonTxt_Modi = catalog.i18nc("@action:label","Show/Hide Parameter Visible")
-        
-        stream.write("<h1>" + TitleTxt + "</h1>\n")
-        stream.write("<button id='enabled'>" + ButtonTxt_Enable + "</button><P>\n")
-        stream.write("<button id='visible'>" + ButtonTxt_Visible + "</button><P>\n")
-        stream.write("<button id='local'>" + ButtonTxt_Modi + "</button><P>\n")
-
-        # Script       
-        stream.write(""<script>
-                            var enabled = document.getElementById('enabled');
-                            enabled.addEventListener('click', function() {
-                                document.body.classList.toggle('hide-disabled');
-                            });
-                        </script>\n"")
-        stream.write(""<script>
-                            var local = document.getElementById('local');
-                            local.addEventListener('click', function() {
-                                document.body.classList.toggle('hide-local');
-                            });
-                        </script>\n"")
-        stream.write(""<script>
-                            var visible = document.getElementById('visible');
-                            visible.addEventListener('click', function() {
-                                document.body.classList.toggle('hide-visible');
-                            });
-                        </script>\n"")                        
-        #Get extruder count
-        extruder_count=stack.getProperty("machine_extruder_count", "value")
-        print_information = CuraApplication.getInstance().getPrintInformation()
-        
-        stream.write("<table width='100%' border='1' cellpadding='3'>")
-        # Job
-        self._WriteTd(stream,catalog.i18nc("@label","Job Name"),print_information.jobName)
-
-        # Attempt to add a thumbnail
-        snapshot = self._createSnapshot()
-        if snapshot:
-            thumbnail_buffer = QBuffer()
-            
-
-            thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
-                    
-            snapshot.save(thumbnail_buffer, "PNG")
-            encodedSnapshot = thumbnail_buffer.data().toBase64().data().decode("utf-8")
-
-            # thumbnail_file = zipfile.ZipInfo(THUMBNAIL_PATH)
-            # Don't try to compress snapshot file, because the PNG is pretty much as compact as it will get
-            # archive.writestr(thumbnail_file, thumbnail_buffer.data()) 
-            # Logger.log("d", "stream = {}".format(encodedSnapshot))
-            stream.write("<tr><td colspan='3'><center><img src='data:image/png;base64," + str(encodedSnapshot)+ "' width='300' height='300' alt='" + print_information.jobName + "' title='" + print_information.jobName + "' /></cente></td></tr>" )            
-              
-        # File
-        # self._WriteTd(stream,"File",os.path.abspath(stream.name))
-        # Date
-        self._WriteTd(stream,"Date",datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
-       
-        # Version  
-        self._WriteTd(stream,"Cura Version",CuraVersion)
-            
-        # Profile || Intent for Ultimaker Machine
-        P_Name = global_stack.qualityChanges.getMetaData().get("name", "")
-        if P_Name=="empty":
-            P_Name = machine_manager.activeIntentCategory
-            self._WriteTd(stream,catalog.i18nc("@label","Intent"),P_Name)
-        else:
-            self._WriteTd(stream,catalog.i18nc("@label","Profile"),P_Name)
-        
-        # Quality
-        Q_Name = global_stack.quality.getMetaData().get("name", "")
-        self._WriteTd(stream,catalog.i18nc("@label:table_header","Quality"),Q_Name)
-                
-        # Material
-        # extruders = list(global_stack.extruders.values())  
-        extruder_stack = CuraApplication.getInstance().getExtruderManager().getActiveExtruderStacks()       
-
-        for Extrud in extruder_stack:
-            PosE = int(Extrud.getMetaDataEntry("position"))
-            PosE += 1
-            
-            M_Name = Extrud.material.getMetaData().get("material", "")
-            
-            MaterialStr="%s %s : %d"%(catalog.i18nc("@label", "Material"),catalog.i18nc("@label", "Extruder"),PosE)
-            self._WriteTd(stream,MaterialStr,M_Name)
-            
-            if extruder_count>1:
-                M_Enabled = Extrud.getMetaDataEntry("enabled")
-                EnabledStr="%s %s : %d"%(catalog.i18nc("@label", "Extruder"),catalog.i18nc("@label", "Enabled"),PosE)
-                self._WriteTd(stream,EnabledStr,M_Enabled)
-            
-        total_material_weight: float = 0
-        #   materialWeights
-        total_material_weight: float = sum(print_information.materialWeights)
-        if total_material_weight > 0:
-            material_weight_output= f"{round(total_material_weight,1)}g"
-            self._WriteTd(stream,catalog.i18nc("@label","Material estimation"),material_weight_output)
-            # self._WriteTd(stream,catalog.i18nc("@label","Filament weight"),str(print_information.materialWeights)) 
-            M_Length= str(print_information.materialLengths).rstrip("]").lstrip("[")
-            
-            M_Length="{0:s} m".format(M_Length)
-            self._WriteTd(stream,catalog.i18nc("@text","Material usage"),M_Length)
-            
-            original_preferences = CuraApplication.getInstance().getPreferences() #Copy only the preferences that we use to the workspace.
-            Currency = original_preferences.getValue("cura/currency")
-            price=str(print_information.materialCosts).rstrip("]").lstrip("[")
-            # Logger.log("d", "Currency = %s",Currency)
-            # Logger.log("d", "price = %s",Currency)
-            # Logger.log("d", "materialCosts = %s",print_information.materialCosts)
-            
-            if "," in price :
-                M_Price= price.replace(',',Currency) + Currency
-                self._WriteTd(stream,catalog.i18nc("@label","Filament Cost"),M_Price)            
-            else :
-                M_Price= str(round(float(price),2)) + " " + Currency
-                self._WriteTd(stream,catalog.i18nc("@label","Filament Cost"),M_Price)
-            
-            #   Print time
-            P_Time = catalog.i18nc("@text","%d D %d H %d Mn")%(print_information.currentPrintTime.days,print_information.currentPrintTime.hours,print_information.currentPrintTime.minutes)
-            self._WriteTd(stream,catalog.i18nc("@label","Printing Time"),P_Time)   
-            # self._WriteTd(stream,catalog.i18nc("@label","Print time"),str(print_information.currentPrintTime.getDisplayString(DurationFormat.Format.ISO8601)))
-        
-        
-        # Define every section to get the same order as in the Cura Interface
-        # Modification from global_stack to extruders[0]
-        if extruder_count>1 :
-            i=0
-            # for Extrud in list(global_stack.extruders.values()):
-            for Extrud in extruder_stack :       
-                i += 1                        
-                self._doTree(Extrud,"resolution",stream,0,i)
-                self._doTree(Extrud,"shell",stream,0,i)
-
-                self._doTree(Extrud,"top_bottom",stream,0,i)
-
-                self._doTree(Extrud,"infill",stream,0,i)
-                self._doTree(Extrud,"material",stream,0,i)
-                self._doTree(Extrud,"speed",stream,0,i)
-                self._doTree(Extrud,"travel",stream,0,i)
-                self._doTree(Extrud,"cooling",stream,0,i)
-
-                self._doTree(Extrud,"dual",stream,0,i)
-        else:
-            self._doTree(extruder_stack[0],"resolution",stream,0,0)
-            self._doTree(extruder_stack[0],"shell",stream,0,0)
-            self._doTree(extruder_stack[0],"top_bottom",stream,0,0)
-
-            self._doTree(extruder_stack[0],"infill",stream,0,0)
-            self._doTree(extruder_stack[0],"material",stream,0,0)
-            self._doTree(extruder_stack[0],"speed",stream,0,0)
-            self._doTree(extruder_stack[0],"travel",stream,0,0)
-            self._doTree(extruder_stack[0],"cooling",stream,0,0)
-
-        self._doTree(extruder_stack[0],"support",stream,0,0)
-        self._doTree(extruder_stack[0],"platform_adhesion",stream,0,0)
-        
-        if extruder_count>1 :
-            i=0
-            for Extrud in extruder_stack:
-                i += 1
-                self._doTree(Extrud,"meshfix",stream,0,i)    
-                self._doTree(Extrud,"blackmagic",stream,0,i)  
-                self._doTree(Extrud,"experimental",stream,0,i)
-        else:
-            self._doTree(extruder_stack[0],"meshfix",stream,0,0)    
-            self._doTree(extruder_stack[0],"blackmagic",stream,0,0)  
-            self._doTree(extruder_stack[0],"experimental",stream,0,0)       
-        
-        self._doTree(extruder_stack[0],"machine_settings",stream,0,0)
-
-        i=0
-        for Extrud in extruder_stack:
-            i += 1
-            self._doTreeExtrud(Extrud,"machine_settings",stream,0,i)
-
-        # This Method is smarter but unfortunatly settings are not in the same ordrer as the Cura interface
-        # for key in global_stack.getAllKeys():
-        #     if global_stack.getProperty(key,"enabled") == True:
-        #         if global_stack.getProperty(key,"type") == "category":
-        #             self._doTree(global_stack,key,stream,0)
-   
-        #----------------------------------------
-        #  Add Script List in the HTML Log File
-        #----------------------------------------
-        script_list = []
-        scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
-        if scripts_list :
-            stream.write("<tr class='category'>")
-            stream.write("<td colspan='3'>" + catalog.i18nc("@label","Postprocessing Scripts") + "</td>")
-            stream.write("</tr>\n")        
-            for script_str in scripts_list.split("\n"):  # Encoded config files should never contain three newlines in a row. At most 2, just before section headers.
-                        if not script_str:  # There were no scripts in this one (or a corrupt file caused more than 3 consecutive newlines here).
-                            continue
-                        script_str = script_str.replace(r"\\\n", "\n").replace(r"\\\\", "\\\\")  # Unescape escape sequences.
-                        script_parser = configparser.ConfigParser(interpolation=None)
-                        script_parser.optionxform = str  # type: ignore  # Don't transform the setting keys as they are case-sensitive.
-                        try:
-                            script_parser.read_string(script_str)
-                        except configparser.Error as e:
-                            Logger.error("Stored post-processing scripts have syntax errors: {err}".format(err = str(e)))
-                            continue
-                        for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
-                            if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
-                                continue
-                            setting_param = ""
-                            for setting_key, setting_value in settings.items():
-                                setting_param += setting_key + " : " + setting_value + "<br>"
-                            self._WriteTdNormal(stream,script_name,setting_param)
-                        
-        stream.write("</table>")
-        stream.write("</body>")
-        stream.write("</html>")
-        return True
-
-    def _WriteTdNormal(self,stream,Key,ValStr):
-
-        stream.write("<tr class='normal'>")
-        stream.write("<td class='w-50'>" + Key + "</td>")
-        stream.write("<td colspan='2'>" + str(ValStr) + "</td>")
-        stream.write("</tr>\n")
-        
-    def _WriteTd(self,stream,Key,ValStr):
-
-        stream.write("<tr>")
-        stream.write("<td class='w-50'>" + Key + "</td>")
-        stream.write("<td colspan='2'>" + str(ValStr) + "</td>")
-        stream.write("</tr>\n")
-            
-               
-    def _doTree(self,stack,key,stream,depth,extrud):   
-        #output node
-        Info_Extrud=""
-        definition_key=key + " label"
-        ExtruderStrg = catalog.i18nc("@label", "Extruder")
-        top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
-        top_container = CuraApplication.getInstance().getGlobalContainerStack().getTop()
-        changed_setting_keys = top_of_stack.getAllKeys() 
-        self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()      
-        
-        if stack.getProperty(key,"type") == "category":
-            stream.write("<tr class='category'>")
-            if extrud>0:
-                untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label) 
-                Pos = int(stack.getMetaDataEntry("position"))   
-                Pos += 1
-                Info_Extrud="%s : %d %s"%(ExtruderStrg,Pos,translated_label)
-            else:
-                untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label)
-                Info_Extrud=str(translated_label)
-            stream.write("<td colspan='3'>" + str(Info_Extrud) + "</td>")
-            #stream.write("<td class=category>" + str(key) + "</td>")
-            stream.write("</tr>\n")
-        else:
-            if stack.getProperty(key,"enabled") == False:
-                stream.write("<tr class='disabled'>")
-            else:
-                if key in self._modified_global_param or key in changed_setting_keys : # changed_setting_keys:
-                    stream.write("<tr class='local'>")
-                else:
-                    if key in self._visible_settings :
-                        stream.write("<tr class='visible'>")
-                    else :
-                        stream.write("<tr class='normal'>")
-            
-            # untranslated_label=stack.getProperty(key,"label").capitalize()
-            untranslated_label=stack.getProperty(key,"label")           
-            translated_label=i18n_printer_catalog.i18nc(definition_key, untranslated_label)
-            
-            stream.write("<td class='w-70 pl-"+str(depth)+"'>" + ("►&nbsp;&nbsp;" * depth) + str(translated_label) + "</td>")
-            
-            GetType=stack.getProperty(key,"type")
-            GetVal=stack.getProperty(key,"value")
-            
-            if str(GetType)=='float':
-                # GelValStr="{:.2f}".format(GetVal).replace(".00", "")  # Formatage
-                GelValStr="{:.4f}".format(GetVal).rstrip("0").rstrip(".") # Formatage thanks to r_moeller
-                try:
-                    minimum_value=float(stack.getProperty(key,"minimum_value"))
-                    maximum_value=float(stack.getProperty(key,"maximum_value"))
-                    
-                    if GetVal > maximum_value or GetVal < minimum_value :
-                        Logger.log("d", "Error = {} ; {} ; {}".format(GetVal,minimum_value,maximum_value))
-                        GelValStr="<div class='error'>{:.4f}".format(GetVal).rstrip("0").rstrip(".")+"</div>" # Formatage thanks to r_moeller
-                except:
-                    pass 
-            else:
-                # enum = Option list
-                if str(GetType)=='enum':
-                    definition_option=key + " option " + str(GetVal)
-                    get_option=str(GetVal)
-                    GetOption=stack.getProperty(key,"options")
-                    GetOptionDetail=GetOption[get_option]
-                    GelValStr=i18n_printer_catalog.i18nc(definition_option, GetOptionDetail)
-                    # Logger.log("d", "GetType_doTree = %s ; %s ; %s ; %s",definition_option, GelValStr, GetOption, GetOptionDetail)
-                else:
-                    GelValStr=str(GetVal).replace(r"\n", "<br>")
-            
-            stream.write("<td class='val'>" + GelValStr + "</td>")
-            
-            stream.write("<td class='w-10'>" + str(stack.getProperty(key,"unit")) + "</td>")
-            stream.write("</tr>\n")
-
-            depth += 1
-
-        #look for children
-        if len(CuraApplication.getInstance().getGlobalContainerStack().getSettingDefinition(key).children) > 0:
-            for i in CuraApplication.getInstance().getGlobalContainerStack().getSettingDefinition(key).children:       
-                self._doTree(stack,i.key,stream,depth,extrud)                
-    
-    def _doTreeExtrud(self,stack,key,stream,depth,extrud):   
-        #output node
-        Info_Extrud=""
-        definition_key=key + " label"
-        ExtruderStrg = catalog.i18nc("@label", "Extruder")
-        top_of_stack = cast(InstanceContainer, stack.getTop())  # Cache for efficiency.
-        changed_setting_keys = top_of_stack.getAllKeys()
-        
-        if stack.getProperty(key,"type") == "category":
-            if extrud>0:
-                untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
-                Pos = int(stack.getMetaDataEntry("position"))   
-                Pos += 1                
-                Info_Extrud="%s : %d %s"%(ExtruderStrg,Pos,translated_label)
-            else:
-                untranslated_label=stack.getProperty(key,"label")
-                translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
-                Info_Extrud=str(translated_label)
-            stream.write("<tr class='category'><td colspan='3'>" + str(Info_Extrud) + "</td>")
-            stream.write("</tr>\n")
-        else:
-            if stack.getProperty(key,"enabled") == False:
-                stream.write("<tr class='disabled'>")
-            else:
-                if key in self._modified_global_param or key in changed_setting_keys : #changed_setting_keys:
-                    stream.write("<tr class='local'>")
-                else:
-                    if key in self._visible_settings :
-                        stream.write("<tr class='visible'>")
-                    else :
-                        stream.write("<tr class='normal'>")
-            
-            # untranslated_label=stack.getProperty(key,"label").capitalize()
-            untranslated_label=stack.getProperty(key,"label")           
-            translated_label=i18n_extruder_catalog.i18nc(definition_key, untranslated_label)
-            
-            stream.write("<td class='w-70 pl-"+str(depth)+"'>" + str(translated_label) + "</td>")
-            
-            GetType=stack.getProperty(key,"type")
-            GetVal=stack.getProperty(key,"value")
-            if str(GetType)=='float':
-                # GelValStr="{:.2f}".format(GetVal).replace(".00", "")  # Formatage
-                    
-                GelValStr="{:.4f}".format(GetVal).rstrip("0").rstrip(".") # Formatage thanks to r_moeller
-                try:
-                    minimum_value=float(stack.getProperty(key,"minimum_value"))
-                    maximum_value=float(stack.getProperty(key,"maximum_value"))
-                    
-                    if GetVal > maximum_value or GetVal < minimum_value :
-                        Logger.log("d", "Error = {} ; {} ; {}".format(GetVal,minimum_value,maximum_value))
-                        GelValStr="<div class='error'>{:.4f}".format(GetVal).rstrip("0").rstrip(".")+"</div>" # Formatage thanks to r_moeller
-                except:
-                    pass               
-
-            else:
-                # enum = Option list
-                if str(GetType)=='enum':
-                    definition_option=key + " option " + str(GetVal)
-                    get_option=str(GetVal)
-                    GetOption=stack.getProperty(key,"options")
-                    GetOptionDetail=GetOption[get_option]
-                    GelValStr=i18n_printer_catalog.i18nc(definition_option, GetOptionDetail)
-                    # Logger.log("d", "GetType_doTree = %s ; %s ; %s ; %s",definition_option, GelValStr, GetOption, GetOptionDetail)
-                else:
-                    GelValStr=str(GetVal).replace(r"\n", "<br>")
-                
-            stream.write("<td class='val'>" + GelValStr + "</td>")
-            
-            stream.write("<td class='w-10'>" + str(stack.getProperty(key,"unit")) + "</td>")
-            stream.write("</tr>\n")
-
-            depth += 1
-
-        #look for children
-        if len(stack.getSettingDefinition(key).children) > 0:
-            for i in stack.getSettingDefinition(key).children:       
-                self._doTreeExtrud(stack,i.key,stream,depth,extrud)"""
 
     @call_on_qt_thread  # must be called from the main thread because of OpenGL
     def _createSnapshot(self):
