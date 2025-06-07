@@ -1,0 +1,16 @@
+{
+    "author": {
+        "author_id": "Slashee-the-Cow",
+        "display_name": "Slashee the Cow",
+        "email": "slasheethecow@gmail.com",
+        "website": "http://github.com/Slashee-the-Cow/"
+    },
+    "description": "Export current print quality settings to a HTML file for easy reference later.",
+    "display_name": "HTML Settings Export Reborn",
+    "package_id": "HTMLSettingsExportReborn",
+    "package_type": "plugin",
+    "package_version": "1.0.0",
+    "sdk_version": 8,
+    "sdk_version_semver": "8.0.0",
+    "website": "https://github.com/Slashee-the-Cow/HTMLSettingsExportReborn/"
+}
