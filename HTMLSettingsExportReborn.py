@@ -29,12 +29,13 @@
 #   - Added zebra striping to rows to aid readability.
 #   - Lists of settings should now look "easy to read" instead of "like a spreadsheet".
 #   - Significantly improved error handling in the now much less likely situation there's a problem.
+#   - Added sticky header with the name, profile and visibility buttons, so you don't have to go to the top of the page to find the visibility buttons.
 #   - Added "warning" colouring for values in addition to errors.
 #   - Error and warning colouring should now look more consistent (and yet different for alternating positions).
 #   - Settings for all extruders are now in a single table per category for added readability and less duplicity. I know exactly what that word means. I chose it carefully.
 #   - Defaults to (but doesn't overwrite, because I like don't like messing with other peoples' things) Cura's last used save folder.
-#   - Changed "show/hide user changed settings" button so that it toggles showing **only** user changes.
-#   - Now uses Python standard library functions to both check for a web browser and open page in it instead of a mix of Python and Qt.
+#   - Made "show/hide user changed settings" button useful in that it toggles showing **only** user changes.
+#   - Now uses Python standard library functions to both check for a web browser and open the page in it instead of an unholy mix of Python and Qt.
 
 import configparser  # The script lists are stored in metadata as serialised config files.
 import datetime
@@ -212,25 +213,6 @@ class HTMLSettingsExportReborn(Extension):
 
         return file_name
 
- 
-    def _has_browser(self):
-        try:
-            webbrowser.get()
-            return True
-        except webbrowser.Error:
-            return False
-        
-    """def _openHtmlPage(self,page_name):
-        # target = os.path.join(tempfile.gettempdir(), page_name)
-        with open(page_name, 'w', encoding='utf-8') as fhandle:
-            self._write(fhandle)
-            
-        if not self._has_browser() :
-            Logger.log("d", "openHtmlPage default browser not defined") 
-            Message(text = catalog.i18nc("@message","Default browser not defined open \n %s") % (page_name), title = catalog.i18nc("@info:title", "Warning ! Doc Html Cura")).show()
-            
-        QDesktopServices.openUrl(QUrl.fromLocalFile(page_name))"""
-        
     def _make_tr_2_cells(self, key: str, value: Any, tr_indent: int = 0, row_class: str = None) -> str:
         """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
@@ -448,7 +430,7 @@ class HTMLSettingsExportReborn(Extension):
                     setting_param = ""
                     for setting_key, setting_value in settings.items():
                         setting_param += f'{html.escape(setting_key)}: {html.escape(setting_value)}<br>'  # Have to escape it here because I'm deliberately adding the <br>s
-                    output_html.append(self._make_tr_2_cells(html.escape(script_name), setting_param.rstrip("<br>"), info_indent + 1))
+                    output_html.append(self._make_tr_2_cells(html.escape(script_name), setting_param.rstrip("<br>"), info_indent + 1, "posts-settings"))
 
             output_html.append(self._make_category_footer(details_indent))
 
@@ -552,7 +534,7 @@ class HTMLSettingsExportReborn(Extension):
         return "\n".join(category_setting_html_lines)
 
     def _make_category_footer(self, base_indent: int):
-        return f'{indent("</tbody>", base_indent + 2)}\n{indent('</table>', base_indent + 1)}\n{indent('</details>', base_indent)}'
+        return f'{indent("</tbody>", base_indent + 2)}\n{indent("</table>", base_indent + 1)}\n{indent("</details>", base_indent)}'
 
     def _get_css_row_class(self, classes: list[str] | str) -> str:
         if isinstance(classes, str):
