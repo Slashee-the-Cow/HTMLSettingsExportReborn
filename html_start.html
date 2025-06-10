@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="$$$LANG$$$">
     <meta charset='UTF-8'>
     <head>
         <title>$$$TITLE$$$</title>
@@ -61,15 +61,16 @@
             .header-row {
                 display: flex;
                 align-items: center;
-                margin-bottom: 10px;
+                margin-bottom: 15px;
+                justify-content: space-evenly;
             }
             /* Set up text to go to each side */
             .header-top-row {
                 justify-content: space-evenly;
             }
-            /* Spread buttons more evenly */
+            
             .header-bottom-row {
-                justify-content: space-evenly;
+                justify-content: center;
                 margin-bottom: 0px; /* It's on the bottom */
             }
             /* Make header text a bit more noticeable */
@@ -77,6 +78,16 @@
                 font-size: 150%;
                 font-weight: bold;
             }
+            /* Make search box text a bit bigger and give a gap to clear button */
+            #search_settings{
+                font-size: 1.05em;
+                margin-right: 10px;
+            }
+            /* Increase font size of clear button to match search box */
+            #clear_search{
+                font-size: 1.05em;
+            }
+
             /* Style buttons in header */
             .setting-visibility {
                 background-color: #AAA;
@@ -125,15 +136,21 @@
             /* Hide row types depending on user selection */
             body.hide-disabled tr.disabled { display: none; }
             body.hide-local tr:not(.local, .some-local) { display: none; }
-            body.hide-local details:not(:has(tr:not(.local, .some-local))) { display: none; } /* Hide <details> block if it contains no user changed settings */
+            body.hide-local details:not(:has(tr.local, tr.some-local)) {
+                 display: none;  /* Hide <details> block if it contains no user changed settings */
+            }
             body.hide-visible tr.visible { display: none; }
+
+            body.search-active details:not(:has(tr.search-show)) {
+                 display: none !important; /* Hide <details> block if it contains no search results */
+            }
 
             /* Make <summary> display a pointer (like a link) so it's
                 obvious it can be clicked and set background colour */
             summary.category-header { 
                 cursor: pointer;
                 background-color: rgb(126, 151, 227);
-                width: var(--category-table-width);
+                width: calc(var(--category-table-width) - 15px);
                 padding-left: 15px;
             }
 
@@ -188,9 +205,17 @@
             td.posts-settings, tr.posts-settings > td.two-column-right{
                 width: calc(var(--posts-settings-width) + var(--category-cell-spacing));
             }
+            /* I know !important is bad semantically but it's easier
+            than coming up with a more specific but not fragile selector */
+            tr.search-hide {
+                display: none !important;
+            }
+            tr.search-show {
+                display: table-row !important;
+            }
         </style>
     </head>
-    <body lang="$$$LANG$$$">
+    <body>
         <!-- Top bar with title, profile and buttons -->
         <div class="sticky-header">
             <div class="header-content-wrapper">
@@ -198,11 +223,15 @@
                     <span class="header-text project-name">$$$PROJECT_NAME$$$</span>
                     <span class="header-text profile-name">$$$PROFILE_NAME$$$</span>
                 </div>
-                <div class="header-row header-bottom-row">
-                    <button class="setting-visibility" id="enabled_settings">$$$UNUSED_SETTINGS$$$</button>
-                    <!--<button class="setting-visibility" id="visible_settings">$$$VISIBLE_SETTINGS$$$</button><br>
+                <div class="header-row">
+                    <button class="setting-visibility" id="disabled_settings">$$$DISABLED_SETTINGS_DEFAULT$$$</button>
+                    <!--<button class="setting-visibility" id="visible_settings">$$$VISIBLE_SETTINGS_DEFAULT$$$</button><br>
                     I'm not sure if setting visibility is hugely important. -->
-                    <button class="setting-visibility" id="local_changes">$$$LOCAL_CHANGE_SETTINGS$$$</button>
+                    <button class="setting-visibility" id="local_settings">$$$LOCAL_CHANGES_DEFAULT$$$</button>
+                </div>
+                <div class="header-row header-bottom-row">
+                    <input type="text" id="search_settings" placeholder="$$$SEARCH_SETTINGS_PLACEHOLDER$$$">
+                    <button id="clear_search">$$$CLEAR_SEARCH$$$</button>
                 </div>
             </div>
         </div>

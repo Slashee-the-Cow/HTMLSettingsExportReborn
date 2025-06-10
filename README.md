@@ -6,10 +6,16 @@ No? Well don't knock it until you try it! It can be a pretty handy reference. If
 
 I suppose you can keep it with your gcode files as a reference. Or send it to other people so they can easily see what changes are the key to your success. Maybe you already have a website and you can post it straight there? Tile two pages side by side so you can see the difference between two of your prints?
 
-This is the sort of thing that probably has a million and one uses, even if I can only name five of them. You lovely people out there are much better at coming up with ways to use things than I am, so I'm sure you'll figure out the 999,996 uses.
+This is the sort of thing that probably has a million and one uses, even if I can only name five of them. You lovely people out there are much better at coming up with ways to use things than I am, so I'm sure you'll figure out the other 999,996 uses.
 
 ### So how do I use it?
 Just set up your print, then open the *Extensions* menu, go down to *HTML Settings Export* then click *Export settings*.
+
+### What cool things does it do?
+- Search the settings if you're looking for a specific thing!
+- Filter the output to only show settings that have been changed from the default.
+- Hide/show disabled settings to get rid of clutter of stuff that doesn't apply.
+- Hover your mouse over a setting name to get what Cura calls it internally.
 
 ---
 ### Got feedback? Feature suggestion? Find a bug? Just did something awesome and want to share it with someone?
@@ -17,6 +23,9 @@ I want to know about it! Just jump by the [GitHub repo](https://github.com/slash
 
 ---
 ### Version History
+#### v1.1.0:
+- **Added setting search function to output page!** (That's the headliner here.)
+- Buttons for hiding/showing sets of settings now change their text based on state.
 #### v1.0.0:
 *Serious* refactor of the code. Basically the way it actually gets the settings stayed the same and got wrapped in all new stuff.
 
