@@ -1,45 +1,85 @@
         </div>
         <script>
-            function setupToggleButton(buttonId, className) {
+            /* Setup toggle visibility buttons */
+            function setupToggleButton(buttonId, className, disabledText, enabledText) {
                 var button = document.getElementById(buttonId);
                 if (button) { // Make sure button actually exists
+                    // Helper function to update the button text
+                    function updateButtonText() {
+                        button.textContent = document.body.classList.contains(className) ? enabledText : disabledText;
+                    }
+
+                    // Set text when the page loads
+                    updateButtonText();
+
                     button.addEventListener("click", function() {
                         document.body.classList.toggle(className);
+                        updateButtonText();
                     });
-                }
-            }
+                };
+            };
 
-            setupToggleButton("enabled_settings", "hide-disabled");
-            setupToggleButton("local_changes", "hide-local");
-            setupToggleButton("visible_settings", "hide-visible");
+            setupToggleButton("disabled_settings", "hide-disabled", "$$$DISABLED_SETTINGS_DISABLED$$$", "$$$DISABLED_SETTINGS_ENABLED$$$");
+            setupToggleButton("visible_settings", "hide-visible", "$$$VISIBLE_SETTINGS_DISABLED$$$", "$$$VISIBLE_SETTINGS_ENABLED$$$");
+            setupToggleButton("local_settings", "hide-local", "$$$LOCAL_CHANGES_DISABLED$$$", "$$$LOCAL_CHANGES_ENABLED$$$");
 
-            document.addEventListener('DOMContentLoaded', function() {
-                // Get all details elements to be synced
-                const allCollapsibleSettings = document.querySelectorAll('details.collapsible-setting');
+            /* Setup search box */
+            document.addEventListener("DOMContentLoaded", function() {
+                const searchInput = document.getElementById("search_settings");
+                const settingRows = document.querySelectorAll(".setting-row");
 
-                allCollapsibleSettings.forEach(detailsElement => {
-                    detailsElement.addEventListener('toggle', function(event) {
-                        const isOpen = this.open;
-                        const classList = Array.from(this.classList); // Convert DOMTokenList to array
+                searchInput.addEventListener("input", function() {
+                    const searchTerm = searchInput.value.toLowerCase();
+                    if (searchTerm === ""){
+                        document.body.classList.remove("search-active");
+                    } else {
+                        document.body.classList.add("search-active")
+                    }
 
-                        // Find the specific setting class (e.g., 'setting-resolution', 'setting-walls')
-                        // The unique class always starts with 'setting-'
-                        const specificSettingClass = classList.find(cls => cls.startsWith('setting-'));
+                    settingRows.forEach(row => {
+                        // Remove existing search visibility classes first
+                        row.classList.remove("search-show", "search-hide");
 
-                        if (specificSettingClass) {
-                            // Query for all details elements that share this specific setting class
-                            const siblingsToSync = document.querySelectorAll(`details.${specificSettingClass}`);
+                        if (searchTerm === "") {
+                            // If search box is blank, remove both classes and let other CSS rules take over
+                            // (already done by the remove() call above)
+                        } else {
+                            const settingNameCell = row.querySelector("td:first-child"); // First cell contains setting
+                            if (settingNameCell) {
+                                const settingText = settingNameCell.textContent.toLowerCase();
+                                const internalNameText = settingNameCell.getAttribute("title");
 
-                            // Sync the state of all matching sibling details elements
-                            siblingsToSync.forEach(sibling => {
-                                if (sibling !== this) { // Don't re-toggle the one that just triggered the event
-                                    sibling.open = isOpen;
+                                let textToSearch = settingText;
+                                if (typeof(internalNameText) === "string" && internalNameText !== "") {
+                                    textToSearch += " " + internalNameText.toLowerCase();
                                 }
-                            });
+
+                                if (textToSearch.includes(searchTerm)) {
+                                    row.classList.add("search-show");
+                                } else {
+                                    row.classList.add("search-hide");
+                                }
+                            }
                         }
                     });
                 });
+                
+                /* Setup search clear button */
+                const clearSearchButton = document.getElementById("clear_search")
+                if (clearSearchButton){
+                    clearSearchButton.addEventListener("click", function() {
+                        searchInput.value = "";
+                        // Manually fire input() event on search box
+                        const event = new Event("input", {
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        document.getElementById("search_settings").dispatchEvent(event);
+                    });
+                };
             });
+
+
         </script>
     </body>
 </html>

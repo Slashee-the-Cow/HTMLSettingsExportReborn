@@ -5,6 +5,9 @@
 # https://github.com/5axes/CuraHtmlDoc/
 #--------------------------------------------------------------------------------------------------
 # Version history (Reborn edition)
+# v1.1.0:
+#   - Added search function to output page. That actually required next to no effort here in the backend, it's all JS and CSS, just had to add classes to some elements it generates programmatically.
+#   - Show/hide disabled/local settings now change their button text depending on state. That's all JS. All I had to do in here was fill in some placeholder strings. Does that make it worth listing here?
 # v1.0.0:
 #   - Made it an Extension instead of a Tool. Menu option seems much more logical than tool button.
 #   - ^^^ meant I could ditch **a bunch** of Tool related stuff which I don't even know why some of it was apparently necessary.
@@ -99,9 +102,9 @@ i18n_cura_catalog = i18nCatalog("cura")
 i18n_printer_catalog = i18nCatalog("fdmprinter.def.json")
 i18n_extruder_catalog = i18nCatalog("fdmextruder.def.json")
 
-Resources.addSearchPath(
-    os.path.join(os.path.abspath(os.path.dirname(__file__)),'resources')
-)  # Plugin translation file import
+#Resources.addSearchPath(  # Don't have any translations so not really needed right now.
+#    os.path.join(os.path.abspath(os.path.dirname(__file__)),'resources')
+#)  # Plugin translation file import
 
 catalog = i18nCatalog("htmlsettingsexport")
 
@@ -113,13 +116,27 @@ def indent(string: str, level: int = 0) -> str:
     
 class HTMLSettingsExportReborn(Extension):
 
+    # "consts" for the placeholders in HTML where these strings are used.
+    # (They're in the Python so they can be dynamically localised with i18n)
+    # For the buttons:
+    # default = default in HTML, probably going to be overwritten by the JS on load.
+    # disabled = not doing its thing (so the text is to do its thing).
+    # enabled = doing its thing (so the text is to set things back to normal).
     HTML_REPLACEMENT_TITLE: str = "$$$TITLE$$$"
     HTML_REPLACEMENT_LANG: str = "$$$LANG$$$"
-    HTML_REPLACEMENT_UNUSED_SETTINGS: str = "$$$UNUSED_SETTINGS$$$"
-    HTML_REPLACEMENT_VISIBLE_SETTINGS: str = "$$$VISIBLE_SETTINGS$$$"
-    HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS: str = "$$$LOCAL_CHANGE_SETTINGS$$$"
+    HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT: str = "$$$DISABLED_SETTINGS_DEFAULT$$$"
+    HTML_REPLACEMENT_DISABLED_SETTINGS_DISABLED: str = "$$$DISABLED_SETTINGS_DISABLED$$$"
+    HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED: str = "$$$DISABLED_SETTINGS_ENABLED$$$"
+    HTML_REPLACEMENT_VISIBLE_SETTINGS_DEFAULT: str = "$$$VISIBLE_SETTINGS_DEFAULT$$$"
+    HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED: str = "$$$VISIBLE_SETTINGS_DISABLED$$$"
+    HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED: str = "$$$VISIBLE_SETTINGS_ENABLED$$$"
+    HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT: str = "$$$LOCAL_CHANGES_DEFAULT$$$"
+    HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED: str = "$$$LOCAL_CHANGES_DISABLED$$$"
+    HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED: str = "$$$LOCAL_CHANGES_ENABLED$$$"
     HTML_REPLACEMENT_PROJECT_TITLE: str = "$$$PROJECT_NAME$$$"
     HTML_REPLACEMENT_PROFILE_NAME: str = "$$$PROFILE_NAME$$$"
+    HTML_REPLACEMENT_SEARCH_PLACEHOLDER: str = "$$$SEARCH_SETTINGS_PLACEHOLDER$$$"
+    HTML_REPLACEMENT_CLEAR_SEARCH: str = "$$$CLEAR_SEARCH$$$"
     CHILD_SPACER = '<div class="child-spacer">►</div>'
     
     def __init__(self):
@@ -324,11 +341,14 @@ class HTMLSettingsExportReborn(Extension):
             profile_name = catalog.i18nc("@page:missing_profile_name", "Default Profile")
         start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
                                 .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
-                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGE_SETTINGS, catalog.i18nc("@button:local_changes", "Toggle only user changes"))
-                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS, catalog.i18nc("@button:visible_settings", "Toggle visible settings"))
-                                .replace(self.HTML_REPLACEMENT_UNUSED_SETTINGS, catalog.i18nc("@button:unused_settings", "Toggle disabled settings"))
+                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT, catalog.i18nc("@button:local_changes", "Toggle only user changes"))
+                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DEFAULT, catalog.i18nc("@button:visible_settings", "Toggle visible settings"))
+                                .replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT, catalog.i18nc("@button:unused_settings", "Toggle disabled settings"))
                                 .replace(self.HTML_REPLACEMENT_PROJECT_TITLE, print_information.jobName)
-                                .replace(self.HTML_REPLACEMENT_PROFILE_NAME, profile_name))
+                                .replace(self.HTML_REPLACEMENT_PROFILE_NAME, profile_name)
+                                .replace(self.HTML_REPLACEMENT_SEARCH_PLACEHOLDER, catalog.i18nc("@page:search_placeholder", "Search settings..."))
+                                .replace(self.HTML_REPLACEMENT_CLEAR_SEARCH, catalog.i18nc("@button:clear_search", "Clear"))
+        )
 
         output_html.append(start_html)
         output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
@@ -443,6 +463,12 @@ class HTMLSettingsExportReborn(Extension):
             Logger.logException("e", "Exception trying to read html_end.html")
             self._export_fail = True
             return ""
+        end_html = (end_html.replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_DISABLED, catalog.i18nc("@button:settings_disabled_disabled", "Hide disabled settings"))
+                            .replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED, catalog.i18nc("@button:settings_disabled_enabled", "Show disabled settings"))
+                            .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED, catalog.i18nc("@button:settings_visible_disabled", "Hide settings not visible in profile"))
+                            .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED, catalog.i18nc("@button:settings_visible_enabled", "Show settings not visible in profile"))
+                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED, catalog.i18nc("@button:settings_local_disabled", "Show only user changes"))
+                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED, catalog.i18nc("@button:settings_local_enabled", "Show all settings")))
         output_html.append(end_html)
         
         return "\n".join(output_html)
@@ -512,8 +538,7 @@ class HTMLSettingsExportReborn(Extension):
             return ""
         row_css_class = self._get_css_row_class(setting.css_class)
         category_setting_html_lines: list[str] = []
-        # Gotta use chr(34) " there or else it'd be a triple double quote
-        category_setting_html_lines.append(indent(f'<tr{(" class=" + chr(34) + row_css_class + chr(34)) if row_css_class else ""}>', base_indent))
+        category_setting_html_lines.append(indent(f'<tr class="setting-row{(" " + row_css_class) if row_css_class else ""}">', base_indent))
         cell_tooltip = setting.internal_representation()
         child_prefix = self.CHILD_SPACER * setting.child_level
         category_setting_html_lines.append(indent(f'<td title="{html.escape(cell_tooltip)}" class="setting-label">{child_prefix}{html.escape(setting.label)}</td>', base_indent + 1))
