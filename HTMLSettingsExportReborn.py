@@ -81,7 +81,7 @@ class CategorySetting:
     # Keep separate from CSS so I can track things like disabled separately to errors
     error_class: list[str] = field(default_factory = list)
     child_level: int = 0
-    children: list[Optional["CategorySetting"]] = field(default_factory = list)
+    children: dict[Optional[dict[str,"CategorySetting"]]] = field(default_factory = dict)
     skip: bool = False
 
     extruder_count: InitVar[int] = 1
@@ -96,6 +96,58 @@ class CategorySetting:
         """Format a string to be used for the HTML <title> attribute as a tooltip"""
         return f"{self.key}: {self.setting_type}"
 
+@dataclass
+class SettingProfile:
+    """Holds all the settings of a profile for comparison"""
+    # Outer key is category, inner key is Cura's internal key so they
+    # can be matched without iterating unti you find a match.
+    settings: dict[str, dict[str, CategorySetting]] = field(default_factory = dict)
+    name: str = ""
+
+    # Used to keep produce the headers
+    extruder_count: list[int] = field(default_factory = list)
+
+    categories: InitVar[list[str]] = ["resolution", "shell", "top_bottom", "infill", "material",
+                               "speed", "travel", "cooling", "dual", "support", "platform_adhesion",
+                               "meshfix", "blackmagic", "experimental"]
+    extruders: InitVar[int] = 1
+
+    def __post_init__(self, categories: list[str], extruders: int):
+        for category in categories:
+            self.settings[category] = {}
+
+        self.extruder_count = [extruders]
+
+    def combine_profiles(self, other: "SettingProfile"):
+        empty_values: list[str] = [""] * len(self.extruder_count)
+        
+        for category_key, category_value in other.settings.items():
+            if category_key not in self.settings:
+                self.settings[category_key] = {}
+            for setting_key, setting_value in category_value.items():
+                if setting_key not in self.settings[category_key]:
+                    self.settings[category_key][setting_key] = setting_value
+                    self.settings[category_key][setting_key].value[0:0] = empty_values
+                    self.settings[category_key][setting_key].css_class[0:0] = empty_values
+                    self.settings[category_key][setting_key].error_class[0:0] = empty_values
+                else:
+                    self.settings[category_key][setting_key].value.extend(setting_value.value)
+                    self.settings[category_key][setting_key].css_class.extend(setting_value.css_class)
+                    self.settings[category_key][setting_key].error_class.extend(setting_value.error_class)
+
+    def recursive_combine_dicts(self, dict_a: dict[str, CategorySetting], dict_b: dict[str, CategorySetting], empty_values: list = None) -> dict[str, CategorySetting]:
+        if not empty_values:
+            empty_values = [""] 
+        for key_b, value_b in dict_b.items():
+            if key_b not in dict_a:
+                dict_a[key_b] = value_b
+                dict_a[key_b].value[0:0] = empty_values
+                dict_a[key_b].css_class[0:0] = empty_values
+                dict_a[key_b].error_class[0:0] = empty_values
+            else:
+                dict_a[key_b].value.extend(value_b.value)
+                dict_a[key_b].css_class.extend(value_b.css_class)
+                dict_a[key_b].error_class.extend(value_b.error_class)
 
 
 i18n_cura_catalog = i18nCatalog("cura")
@@ -247,6 +299,14 @@ class HTMLSettingsExportReborn(Extension):
                "\n".join(list_item_htmls) + "\n" +
                indent('</ol>', base_indent_level + 1)
                )
+
+    def getSettings(self) -> dict[str,dict[str,CategorySetting]]:
+        global_stack = self._application.getGlobalContainerStack()
+        extruder_stacks = self._application.getExtruderManager().getActiveExtruderStacks()
+        self._extruder_count = self._application.getGlobalContainerStack().getProperty("machine_extruder_count", "value")
+        self._single_extruder = self._extruder_count == 1
+
+        
 
     def _assemble_html(self) -> str:
         # Information sources
@@ -553,9 +613,9 @@ class HTMLSettingsExportReborn(Extension):
             display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")
             category_setting_html_lines.append(indent(f'<td class="{cell_class + " setting-value" if cell_class else "setting-value"}" title="{html.escape(class_tooltip)}">{display_value}</td>', base_indent + 1))
         category_setting_html_lines.append(indent('</tr>', base_indent))
-        for child in setting.children:
-            if child:  # Shouldn't be None, but in case it is
-                category_setting_html_lines.append(self._make_category_setting_row(child, base_indent))
+        for child_key in setting.children:
+            if setting.children[child_key] is not None:  # Shouldn't be None, but in case it is
+                category_setting_html_lines.append(self._make_category_setting_row(setting.children[child_key], base_indent))
         return "\n".join(category_setting_html_lines)
 
     def _make_category_footer(self, base_indent: int):
@@ -738,7 +798,7 @@ class HTMLSettingsExportReborn(Extension):
             children_keys_list = [child_def.key for child_def in self._application.getGlobalContainerStack().getSettingDefinition(key).children]
 
         for child_key in children_keys_list:
-            setting.children.append(self._get_setting(child_key, category_key, extruder_stack, local_catalog, child_level + 1, children_local_stack))
+            setting.children[child_key] = self._get_setting(child_key, category_key, extruder_stack, local_catalog, child_level + 1, children_local_stack)
 
         return setting
 
