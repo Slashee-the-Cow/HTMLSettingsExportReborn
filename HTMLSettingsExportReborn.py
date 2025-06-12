@@ -101,53 +101,74 @@ class SettingProfile:
     """Holds all the settings of a profile for comparison"""
     # Outer key is category, inner key is Cura's internal key so they
     # can be matched without iterating unti you find a match.
-    settings: dict[str, dict[str, CategorySetting]] = field(default_factory = dict)
+    settings: dict[str, list[CategorySetting]] = field(default_factory = dict)
+    # Map Cura's internal key to translated labels
+    settings_labels: dict[str, str] = field(default_factory = dict)
     name: str = ""
 
-    # Used to keep produce the headers
+    # Used to produce the headers
     extruder_count: list[int] = field(default_factory = list)
 
     categories: InitVar[list[str]] = ["resolution", "shell", "top_bottom", "infill", "material",
                                "speed", "travel", "cooling", "dual", "support", "platform_adhesion",
-                               "meshfix", "blackmagic", "experimental"]
+                               "meshfix", "blackmagic", "experimental", "machine_settings"]
+    # machine_settings needs to be treated specially but it's easier to call it out specifically later
     extruders: InitVar[int] = 1
 
     def __post_init__(self, categories: list[str], extruders: int):
         for category in categories:
-            self.settings[category] = {}
+            self.settings[category] = []
+            self.settings_labels[category] = ""
 
         self.extruder_count = [extruders]
 
     def combine_profiles(self, other: "SettingProfile"):
-        empty_values: list[str] = [""] * len(self.extruder_count)
+        empty_values_a: list[str] = [""] * sum(self.extruder_count)
+        empty_values_b: list[str] = [""] * sum(other.extruder_count)
         
-        for category_key, category_value in other.settings.items():
-            if category_key not in self.settings:
-                self.settings[category_key] = {}
-            for setting_key, setting_value in category_value.items():
-                if setting_key not in self.settings[category_key]:
-                    self.settings[category_key][setting_key] = setting_value
-                    self.settings[category_key][setting_key].value[0:0] = empty_values
-                    self.settings[category_key][setting_key].css_class[0:0] = empty_values
-                    self.settings[category_key][setting_key].error_class[0:0] = empty_values
-                else:
-                    self.settings[category_key][setting_key].value.extend(setting_value.value)
-                    self.settings[category_key][setting_key].css_class.extend(setting_value.css_class)
-                    self.settings[category_key][setting_key].error_class.extend(setting_value.error_class)
+        self.extruder_count.extend(other.extruder_count)
 
-    def recursive_combine_dicts(self, dict_a: dict[str, CategorySetting], dict_b: dict[str, CategorySetting], empty_values: list = None) -> dict[str, CategorySetting]:
-        if not empty_values:
-            empty_values = [""] 
+        # Make sure self includes all categories from other
+        for category_key in other.settings:
+            if category_key not in self.settings:
+                self.settings[category_key] = other.settings[category_key].copy()
+            # Settings and labels use the same keys
+            if category_key not in self.settings_labels:
+                self.settings_labels[category_key] = other.settings_labels[category_key]
+
+        # Now combine for each category
+        for category_key in self.settings:
+            self.settings[category_key] = self._recursive_combine_settings_dicts(
+                self.settings[category_key], other.settings.get(category_key, {}), empty_values_a, empty_values_b)
+
+    def _recursive_combine_settings_dicts(self, dict_a: dict[str, CategorySetting], dict_b: dict[str, CategorySetting], empty_values_a: list = None, empty_values_b: list = None) -> dict[str, CategorySetting]:
+        if not empty_values_a:
+            empty_values_a = [""]
+        if not empty_values_b:
+            empty_values_b = [""]
         for key_b, value_b in dict_b.items():
             if key_b not in dict_a:
                 dict_a[key_b] = value_b
-                dict_a[key_b].value[0:0] = empty_values
-                dict_a[key_b].css_class[0:0] = empty_values
-                dict_a[key_b].error_class[0:0] = empty_values
+                dict_a[key_b].value[0:0] = empty_values_a
+                dict_a[key_b].css_class[0:0] = empty_values_a
+                dict_a[key_b].error_class[0:0] = empty_values_a
             else:
                 dict_a[key_b].value.extend(value_b.value)
                 dict_a[key_b].css_class.extend(value_b.css_class)
                 dict_a[key_b].error_class.extend(value_b.error_class)
+
+        for key in dict_a:
+            if key not in dict_b:
+                dict_a[key].value.extend(empty_values_b)
+                dict_a[key].css_class.extend(empty_values_b)
+                dict_a[key].error_class.extend(empty_values_b)
+
+        for item_key in list(dict_a.keys):
+            children_to_combine = dict_b[item_key].children if dict_b.get(item_key) else {}
+            dict_a[item_key].children = self._recursive_combine_settings_dicts(
+                dict_a[item_key].children, children_to_combine, empty_values_a, empty_values_b)
+            
+        return dict_a
 
 
 i18n_cura_catalog = i18nCatalog("cura")
@@ -189,6 +210,7 @@ class HTMLSettingsExportReborn(Extension):
     HTML_REPLACEMENT_PROFILE_NAME: str = "$$$PROFILE_NAME$$$"
     HTML_REPLACEMENT_SEARCH_PLACEHOLDER: str = "$$$SEARCH_SETTINGS_PLACEHOLDER$$$"
     HTML_REPLACEMENT_CLEAR_SEARCH: str = "$$$CLEAR_SEARCH$$$"
+
     CHILD_SPACER = '<div class="child-spacer">►</div>'
     
     def __init__(self):
@@ -300,13 +322,27 @@ class HTMLSettingsExportReborn(Extension):
                indent('</ol>', base_indent_level + 1)
                )
 
-    def getSettings(self) -> dict[str,dict[str,CategorySetting]]:
+    def _get_setting_profile(self) -> SettingProfile:
         global_stack = self._application.getGlobalContainerStack()
+        machine_manager = self._application.getMachineManager()
         extruder_stacks = self._application.getExtruderManager().getActiveExtruderStacks()
-        self._extruder_count = self._application.getGlobalContainerStack().getProperty("machine_extruder_count", "value")
-        self._single_extruder = self._extruder_count == 1
+        extruder_count = self._application.getGlobalContainerStack().getProperty("machine_extruder_count", "value")
 
-        
+        profile_name = global_stack.qualityChanges.getMetaData().get("name", "")
+        if profile_name in ("", "empty", None):
+            profile_name = catalog.i18nc("@page:missing_profile_name", "Default Profile")
+
+        profile = SettingProfile(name = profile_name, extruders = extruder_count)
+        for category in profile.settings:
+            category_settings, category_label = self._get_category_settings_list(
+                category, extruder_stacks,
+                i18n_printer_catalog if category != "machine_settings" else i18n_extruder_catalog)
+            profile.settings[category] = category_settings
+            profile.settings_labels[category] = category_label
+
+        return profile
+
+
 
     def _assemble_html(self) -> str:
         # Information sources
@@ -396,9 +432,17 @@ class HTMLSettingsExportReborn(Extension):
             Logger.logException("e", "Exception trying to read html_start.html")
             self._export_fail = True
             return ""
-        profile_name = global_stack.qualityChanges.getMetaData().get("name", "")
-        if profile_name in ("", "empty", None):
-            profile_name = catalog.i18nc("@page:missing_profile_name", "Default Profile")
+        empty_presets = ("", "empty", None)
+        # Preset / Intent (for UM printers)
+        preset_name = global_stack.qualityChanges.getMetaData().get("name", "")
+        if preset_name in empty_presets:
+            preset_name = machine_manager.activeIntentCategory
+            um_intent = True
+        else:
+            um_intent = False
+        if preset_name in empty_presets:
+            preset_name = catalog.i18nc("@page:missing_profile_name", "None")
+        profile_name = global_stack.quality.getMetaData().get("name", "")
         start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
                                 .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
                                 .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT, catalog.i18nc("@button:local_changes", "Toggle only user changes"))
@@ -421,16 +465,10 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Date/time"), formatted_date_time), info_indent))
         # Cura version
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Cura Version"), CuraVersion), info_indent))
-        # Preset / Intent (for UM printers)
-        preset_name = global_stack.qualityChanges.getMetaData().get("name", "")
-        if preset_name == "empty":
-            preset_name = machine_manager.activeIntentCategory
-            um_intent = True
-        else:
-            um_intent = False
+
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Intent") if um_intent else catalog.i18nc("@label", "Profile"), preset_name), info_indent))
         # Quality profile
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), global_stack.quality.getMetaData().get("name", "")), info_indent))
+        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), profile_name), info_indent))
         # Extruders enabled/materials (multiple extruders)
         if self._extruder_count > 1:
             extruders_enabled: list = []
@@ -461,17 +499,19 @@ class HTMLSettingsExportReborn(Extension):
 
         # Get print quality settings for each extruder
         # Categories appear in the same order they do in Cura's print quality settings panel
-        settings_categories = ["resolution", "shell", "top_bottom", "infill", "material",
-                               "speed", "travel", "cooling", "dual", "support", "platform_adhesion",
-                               "meshfix", "blackmagic", "experimental"]
+        #settings_categories = ["resolution", "shell", "top_bottom", "infill", "material",
+                               #"speed", "travel", "cooling", "dual", "support", "platform_adhesion",
+                               #"meshfix", "blackmagic", "experimental"]
+        setting_profile = self._get_setting_profile()
 
         # Get settings for each category
         #for i, stack in enumerate(extruder_stack):
         #    for category in settings_categories:
         #        output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
-        for category in settings_categories:
+        for category, settings_list in setting_profile.settings.items():
             # Get settings for all extruders in advance
-            category_settings, category_label = self._get_category_settings_list(category, extruder_stack, i18n_printer_catalog)
+            category_settings = settings_list
+            category_label = setting_profile.settings_labels[category]
 
             details_open = True  # Almost always true
             if category == "dual" and self._single_extruder:
@@ -482,11 +522,11 @@ class HTMLSettingsExportReborn(Extension):
             output_html.append(self._make_category_footer(details_indent))
 
         # Get settings for each extruder
-        extruder_settings, extruder_label = self._get_category_settings_list("machine_settings", extruder_stack, i18n_extruder_catalog)
-        output_html.append(self._make_category_header(extruder_label, details_indent, "machine_settings"))
-        for setting in extruder_settings:
-            output_html.append(self._make_category_setting_row(setting, setting_indent))
-        output_html.append(self._make_category_footer(details_indent))
+        #extruder_settings, extruder_label = self._get_category_settings_list("machine_settings", extruder_stack, i18n_extruder_catalog)
+        #output_html.append(self._make_category_header(extruder_label, details_indent, "machine_settings"))
+        #for setting in extruder_settings:
+        #    output_html.append(self._make_category_setting_row(setting, setting_indent))
+        #output_html.append(self._make_category_footer(details_indent))
 
 
         scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
