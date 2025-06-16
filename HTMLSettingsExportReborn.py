@@ -42,6 +42,7 @@
 
 import configparser  # The script lists are stored in metadata as serialised config files.
 import datetime
+import difflib
 import html
 import locale
 import os
@@ -49,6 +50,7 @@ import webbrowser
 
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
+from enum import Enum, auto
 from typing import Any, Optional
 
 from cura.CuraApplication import CuraApplication
@@ -69,6 +71,37 @@ from UM.Settings.InstanceContainer import InstanceContainer
 from UM.Settings.Models.SettingPreferenceVisibilityHandler import \
     SettingPreferenceVisibilityHandler
 
+class ExportMode(Enum):
+    """More stuffup-proof than just using a string literal"""
+    REPORT = auto()
+    COMPARE = auto()
+
+def get_all_keys_from_setting_tree(
+    setting_nodes: list[Any],
+    key_attr_name: str = "key",
+    children_attr_name: str = "children"
+    ) -> list[str]:
+    """
+    Recursively parses a list of setting objects and returns a flat list of
+    all encountered setting keys, preserving their original order.
+    """
+    all_keys = []
+    for node in setting_nodes:
+        current_key = getattr(node, key_attr_name, None)
+        if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
+            current_key = node.get(key_attr_name)
+
+        if current_key is not None:
+            all_keys.append(current_key)
+
+        children = getattr(node, children_attr_name, None)
+        if children is None and isinstance(node, dict):
+            children = node.get(children_attr_name)
+
+        if children:
+            all_keys.extend(get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
+
+    return all_keys
 
 @dataclass
 class CategorySetting:
@@ -104,32 +137,102 @@ class SettingProfile:
     settings: dict[str, list[CategorySetting]] = field(default_factory = dict)
     # Map Cura's internal key to translated labels
     settings_labels: dict[str, str] = field(default_factory = dict)
-    name: str = ""
+    profile_name: str = ""
+    preset_name: str = ""
+    extruder_count: int = 1
+    global_changed_settings: list[Any] = field(default_factory = list)
+    extruder_changed_settings: list[list[Any]] = field(default_factory = list)
+    visible_settings: list[Any] = field(default_factory = list)
+
+    """def get_all_keys_from_setting_tree(
+        self,
+        setting_nodes: list[Any],
+        key_attr_name: str = 'key',
+        children_attr_name: str = 'children'
+    ) -> list[str]:
+        ""
+        Recursively parses a list of setting objects and returns a flat list of
+        all encountered setting keys, preserving their original order.
+        ""
+        all_keys = []
+        for node in setting_nodes:
+            current_key = getattr(node, key_attr_name, None)
+            if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
+                current_key = node.get(key_attr_name)
+
+            if current_key is not None:
+                all_keys.append(current_key)
+
+            children = getattr(node, children_attr_name, None)
+            if children is None and isinstance(node, dict):
+                children = node.get(children_attr_name)
+
+            if children:
+                all_keys.extend(self.get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
+
+        return all_keys"""
+
+    def get_flattened_category_dict(self, category: list | dict) -> dict[str, Any]:
+        flattened_dict = {}
+        for item in category:
+            new_key = getattr(item, "key", None)
+            if new_key is None and isinstance(item, dict):
+                new_key = item.get("key")
+            flattened_dict[new_key] = item
+        
+            children = getattr(item, "children", None)
+            if children is None and isinstance(item, dict):
+                children = item.get("children")
+            if children:
+                flattened_dict.update(self.get_flattened_category_dict(children))
+            return flattened_dict
+    
 
     # Used to produce the headers
-    extruder_count: list[int] = field(default_factory = list)
-
     categories: InitVar[list[str]] = ["resolution", "shell", "top_bottom", "infill", "material",
                                "speed", "travel", "cooling", "dual", "support", "platform_adhesion",
                                "meshfix", "blackmagic", "experimental", "machine_settings"]
     # machine_settings needs to be treated specially but it's easier to call it out specifically later
-    extruders: InitVar[int] = 1
+    # Easier both than overriding __init__ or expecting users to provide a list
 
-    def __post_init__(self, categories: list[str], extruders: int):
+    def __post_init__(self, categories: list[str]):
         for category in categories:
             self.settings[category] = []
             self.settings_labels[category] = ""
 
-        self.extruder_count = [extruders]
+    """def get_ordered_setting_keys(self) -> list[str]:
+        ""
+        Extracts and returns all setting keys present in this specific
+        SettingProfile instance, in their hierarchical display order.
+        ""
+        all_profile_keys = []
+        # Iterate through the CATEGORIES in the order Cura provides them,
+        # then recursively get keys from the CategorySetting objects within each.
+        # Assuming the dict.keys() iteration order is stable (Python 3.7+ dicts preserve insertion order).
+        for category_name in self.settings.keys():
+            # Get the list of top-level CategorySetting objects for this category
+            top_level_settings_in_category = self.settings[category_name]
+            
+            # Recursively get all keys from this list of CategorySetting objects
+            all_profile_keys.extend(
+                get_all_keys_from_setting_tree(
+                    top_level_settings_in_category,
+                    key_attr_name='key',      # The name of the attribute holding the key
+                    children_attr_name='children' # The name of the attribute holding children
+                )
+            )
+        return all_profile_keys""
 
-    def combine_profiles(self, other: "SettingProfile"):
-        empty_values_a: list[str] = [""] * sum(self.extruder_count)
-        empty_values_b: list[str] = [""] * sum(other.extruder_count)
+    ""def combine_profiles(self, other: "SettingProfile"):
+        empty_values_a: list[str] = [""] * sum(self.extruder_counts)
+        empty_values_b: list[str] = [""] * sum(other.extruder_counts)
         
-        self.extruder_count.extend(other.extruder_count)
+        self.extruder_counts.extend(other.extruder_counts)
+        self.profile_names.extend(other.profile_names)
+        self.preset_names.extend(other.preset_names)
 
         # Make sure self includes all categories from other
-        for category_key in other.settings:
+        for category_key in other.settings.keys():
             if category_key not in self.settings:
                 self.settings[category_key] = other.settings[category_key].copy()
             # Settings and labels use the same keys
@@ -139,7 +242,7 @@ class SettingProfile:
         # Now combine for each category
         for category_key in self.settings:
             self.settings[category_key] = self._recursive_combine_settings_dicts(
-                self.settings[category_key], other.settings.get(category_key, {}), empty_values_a, empty_values_b)
+                self.settings[category_key], other.settings.get(category_key, {}), empty_values_a, empty_values_b)""
 
     def _recursive_combine_settings_dicts(self, dict_a: dict[str, CategorySetting], dict_b: dict[str, CategorySetting], empty_values_a: list = None, empty_values_b: list = None) -> dict[str, CategorySetting]:
         if not empty_values_a:
@@ -168,8 +271,71 @@ class SettingProfile:
             dict_a[item_key].children = self._recursive_combine_settings_dicts(
                 dict_a[item_key].children, children_to_combine, empty_values_a, empty_values_b)
             
-        return dict_a
+        return dict_a"""
 
+class CompareProfiles:
+
+    def __init__(self, profile_a: SettingProfile, profile_b: SettingProfile):
+        self.profile_a = profile_a
+        self.profile_b = profile_b
+
+    def align_setting_lists(self,
+        list_a: list[Any],
+        list_b: list[Any],
+        blank_placeholder: str = ""
+    ) -> tuple[list[Any], list[Any]]:
+        """
+        Aligns two lists, inserting placeholders for missing items to maintain relative order.
+        """
+        matcher = difflib.SequenceMatcher(None, list_a, list_b)
+        aligned_a = []
+        aligned_b = []
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                # Items are common to both lists, align them directly
+                for k in range(i2 - i1):
+                    aligned_a.append(list_a[i1 + k])
+                    aligned_b.append(list_b[j1 + k])
+            elif tag == 'delete':
+                # Items exist only in list_a
+                for k in range(i2 - i1):
+                    aligned_a.append(list_a[i1 + k])
+                    aligned_b.append(blank_placeholder)
+            elif tag == 'insert':
+                # Items exist only in list_b
+                for k in range(j2 - j1):
+                    aligned_a.append(blank_placeholder)
+                    aligned_b.append(list_b[j1 + k])
+            elif tag == 'replace':
+                # Items in list_a are "replaced" by items in list_b
+                # This is the tricky part for exact desired output, as difflib
+                # defines a block as a replacement. We'll simply interleave them
+                # based on their original presence.
+                len_a_seg = i2 - i1
+                len_b_seg = j2 - j1
+                max_len_seg = max(len_a_seg, len_b_seg)
+
+                for k in range(max_len_seg):
+                    val_a = list_a[i1 + k] if k < len_a_seg else blank_placeholder
+                    val_b = list_b[j1 + k] if k < len_b_seg else blank_placeholder
+                    aligned_a.append(val_a)
+                    aligned_b.append(val_b)
+
+        return aligned_a, aligned_b
+
+    def combine_aligned_lists(self, list_a: list[Any], list_b: list[Any]) -> list[Any]:
+        combined_list = []
+        for i in range(len(list_a)):
+            if list_a[i]:
+                # Just take item straight from A
+                combined_list.append(list_a[i])
+            elif list_b[i]:
+                # Item exists in B but not A
+                combined_list.append(list_b[i])
+            else:
+                raise ValueError(f"CompareProfiles.combine_aligned_lists found falsy values in both lists at index {i}")
+        return combined_list
 
 i18n_cura_catalog = i18nCatalog("cura")
 i18n_printer_catalog = i18nCatalog("fdmprinter.def.json")
@@ -220,13 +386,9 @@ class HTMLSettingsExportReborn(Extension):
 
         self._preferences = self._application.getPreferences()
 
-        self._modified_global_settings: list = []
-        self._modified_extruder_settings: list = []
-        self._visible_settings: list = []
-
         self._plugin_dir = os.path.dirname(__file__)
-        self._single_extruder: bool = False
-        self._extruder_count: int = 1
+
+        self._export_mode: ExportMode = ExportMode.REPORT
 
         self._export_fail = False  # I catch so many exceptions I sometimes end up with blank files
 
@@ -304,6 +466,22 @@ class HTMLSettingsExportReborn(Extension):
 
         return file_name
 
+    def _load_file_with_replacements(self, filename: str, replacements: dict[str,str]) -> str:
+        """Loads a file then replaces the keys in the dict with the values"""
+        file: str = ""
+        try:
+            with open(filename, "r", encoding="utf-8") as file_handle:
+                file = file_handle.read()
+        except Exception:
+            Logger.logException("e", f"Exception trying to read {filename}")
+            self._export_fail = True
+            return ""
+        
+        for key, value in replacements.items():
+            Logger.log("d", f"Replacing {key} with {value}")
+            file = file.replace(key, value)
+        return file
+
     def _make_tr_2_cells(self, key: str, value: Any, tr_indent: int = 0, row_class: str = None) -> str:
         """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
@@ -328,14 +506,26 @@ class HTMLSettingsExportReborn(Extension):
         extruder_stacks = self._application.getExtruderManager().getActiveExtruderStacks()
         extruder_count = self._application.getGlobalContainerStack().getProperty("machine_extruder_count", "value")
 
+        empty_presets = ("", "empty", None)
         profile_name = global_stack.qualityChanges.getMetaData().get("name", "")
-        if profile_name in ("", "empty", None):
+        if profile_name in empty_presets:
             profile_name = catalog.i18nc("@page:missing_profile_name", "Default Profile")
 
-        profile = SettingProfile(name = profile_name, extruders = extruder_count)
+        # Preset / Intent (for UM printers)
+        preset_name = global_stack.qualityChanges.getMetaData().get("name", "")
+        if preset_name in empty_presets:
+            preset_name = machine_manager.activeIntentCategory
+        if preset_name in empty_presets:
+            preset_name = catalog.i18nc("@page:missing_profile_name", "None")
+
+        Logger.log("d", f"_get_setting_profile about to run with profile_name = {profile_name}")
+        profile = SettingProfile(profile_name = profile_name, preset_name = preset_name, extruder_count = extruder_count)
+        profile.global_changed_settings = global_stack.getTop().getAllKeys()
+        profile.extruder_changed_settings = [extruder.getTop().getAllKeys() for extruder in extruder_stacks]
+        profile.visible_settings = SettingPreferenceVisibilityHandler().getVisible()
         for category in profile.settings:
             category_settings, category_label = self._get_category_settings_list(
-                category, extruder_stacks,
+                category, extruder_stacks, profile,
                 i18n_printer_catalog if category != "machine_settings" else i18n_extruder_catalog)
             profile.settings[category] = category_settings
             profile.settings_labels[category] = category_label
@@ -350,12 +540,10 @@ class HTMLSettingsExportReborn(Extension):
         machine_manager = self._application.getMachineManager()
         print_information = self._application.getPrintInformation()
         extruder_stack = self._application.getExtruderManager().getActiveExtruderStacks()
-        self._extruder_count = global_stack.getProperty("machine_extruder_count", "value")
-        self._single_extruder = self._extruder_count == 1
 
-        self._modified_global_settings = global_stack.getTop().getAllKeys()
-        self._modified_extruder_settings = [extruder.getTop().getAllKeys() for extruder in extruder_stack]
-        self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()
+        #self._modified_global_settings = global_stack.getTop().getAllKeys()
+        #self._modified_extruder_settings = [extruder.getTop().getAllKeys() for extruder in extruder_stack]
+        #self._visible_settings = SettingPreferenceVisibilityHandler().getVisible()
         
         output_html: list[str] = []
 
@@ -421,40 +609,60 @@ class HTMLSettingsExportReborn(Extension):
         # html > body > div > details > table > tbody
         setting_indent: int = 6
 
+        # Get print quality settings for each extruder
+        # Categories appear in the same order they do in Cura's print quality settings panel
+        #settings_categories = ["resolution", "shell", "top_bottom", "infill", "material",
+                               #"speed", "travel", "cooling", "dual", "support", "platform_adhesion",
+                               #"meshfix", "blackmagic", "experimental"]
+        setting_profile = self._get_setting_profile()
+        Logger.log("d", f"setting_profile has just been created, and setting_profile.profile_name = {setting_profile.profile_name}")
 
-        # Add header with CSS and start of page
-        start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_start.html"))
-        start_html: str = ""
-        try:
-            with open(start_html_file, "r", encoding="utf-8") as start:
-                start_html = start.read()
-        except Exception:
-            Logger.logException("e", "Exception trying to read html_start.html")
-            self._export_fail = True
-            return ""
+        # Get settings for each category
+        #for i, stack in enumerate(extruder_stack):
+        #    for category in settings_categories:
+        #        output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
+
+
+
         empty_presets = ("", "empty", None)
         # Preset / Intent (for UM printers)
-        preset_name = global_stack.qualityChanges.getMetaData().get("name", "")
-        if preset_name in empty_presets:
-            preset_name = machine_manager.activeIntentCategory
+        preset_name = setting_profile.preset_name
+        if preset_name == machine_manager.activeIntentCategory:
             um_intent = True
         else:
             um_intent = False
-        if preset_name in empty_presets:
-            preset_name = catalog.i18nc("@page:missing_profile_name", "None")
-        profile_name = global_stack.quality.getMetaData().get("name", "")
-        start_html = (start_html.replace(self.HTML_REPLACEMENT_TITLE, catalog.i18nc("@page:title", "Cura Print Settings"))
-                                .replace(self.HTML_REPLACEMENT_LANG, catalog.i18nc("@page:language", "en"))
-                                .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT, catalog.i18nc("@button:local_changes", "Toggle only user changes"))
-                                .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DEFAULT, catalog.i18nc("@button:visible_settings", "Toggle visible settings"))
-                                .replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT, catalog.i18nc("@button:unused_settings", "Toggle disabled settings"))
-                                .replace(self.HTML_REPLACEMENT_PROJECT_TITLE, print_information.jobName)
-                                .replace(self.HTML_REPLACEMENT_PROFILE_NAME, profile_name)
-                                .replace(self.HTML_REPLACEMENT_SEARCH_PLACEHOLDER, catalog.i18nc("@page:search_placeholder", "Search settings..."))
-                                .replace(self.HTML_REPLACEMENT_CLEAR_SEARCH, catalog.i18nc("@button:clear_search", "Clear"))
-        )
+        profile_name = setting_profile.profile_name
+
+        # Add header with CSS and start of page
+        start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_start.html"))
+        sticky_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_sticky_report.html"))
+        main_start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_main_start.html"))
+        
+        start_html_replacements = {
+            self.HTML_REPLACEMENT_TITLE: catalog.i18nc("@page:title", "Cura Print Settings"),
+            self.HTML_REPLACEMENT_LANG: catalog.i18nc("@page:language", "en"),
+        }
+        Logger.log("d", f"Before sticky_replacements, setting_profile.profile_name = {setting_profile.profile_name}")
+        sticky_replacements = {
+            self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT: catalog.i18nc("@button:local_changes", "Toggle only user changes"),
+            self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DEFAULT: catalog.i18nc("@button:visible_settings", "Toggle visible settings"),
+            self.HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT: catalog.i18nc("@button:unused_settings", "Toggle disabled settings"),
+            self.HTML_REPLACEMENT_PROJECT_TITLE: print_information.jobName,
+            self.HTML_REPLACEMENT_PROFILE_NAME: setting_profile.profile_name,
+            self.HTML_REPLACEMENT_SEARCH_PLACEHOLDER: catalog.i18nc("@page:search_placeholder", "Search settings..."),
+            self.HTML_REPLACEMENT_CLEAR_SEARCH: catalog.i18nc("@button:clear_search", "Clear"),
+        }
+        Logger.log("d", f"Sticky replacements: {sticky_replacements}")
+        start_html: str = self._load_file_with_replacements(start_html_file, start_html_replacements)
+        sticky_html: str = self._load_file_with_replacements(sticky_html_file, sticky_replacements)
+
+        # Yes I realise it's just one line but it doesn't belong in the sticky
+        main_start_html: str = self._load_file_with_replacements(main_start_html_file, {})
 
         output_html.append(start_html)
+        output_html.append(sticky_html)
+        output_html.append(main_start_html)
+
         output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
         # Project name
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
@@ -470,7 +678,7 @@ class HTMLSettingsExportReborn(Extension):
         # Quality profile
         output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), profile_name), info_indent))
         # Extruders enabled/materials (multiple extruders)
-        if self._extruder_count > 1:
+        if setting_profile.extruder_count > 1:
             extruders_enabled: list = []
             extruder_materials: list = []
             for extruder in extruder_stack:
@@ -497,30 +705,18 @@ class HTMLSettingsExportReborn(Extension):
         # Close basic information table
         output_html.append(indent('</table>', info_indent - 1))
 
-        # Get print quality settings for each extruder
-        # Categories appear in the same order they do in Cura's print quality settings panel
-        #settings_categories = ["resolution", "shell", "top_bottom", "infill", "material",
-                               #"speed", "travel", "cooling", "dual", "support", "platform_adhesion",
-                               #"meshfix", "blackmagic", "experimental"]
-        setting_profile = self._get_setting_profile()
 
-        # Get settings for each category
-        #for i, stack in enumerate(extruder_stack):
-        #    for category in settings_categories:
-        #        output_html.extend(self._get_category_settings(category, stack, info_indent -1, i if extruder_count > 1 else -1, i18n_printer_catalog))
-        for category, settings_list in setting_profile.settings.items():
-            # Get settings for all extruders in advance
-            category_settings = settings_list
+        # Actually output from our SettingProfile
+        for category, category_settings in setting_profile.settings.items():
             category_label = setting_profile.settings_labels[category]
 
             details_open = True  # Almost always true
-            if category == "dual" and self._single_extruder:
+            if category == "dual" and setting_profile.extruder_count == 1:
                 details_open = False
-            output_html.append(self._make_category_header(category_label, details_indent, category, details_open))
+            output_html.append(self._make_category_header(category_label, setting_profile.extruder_count, details_indent, category, details_open))
             for setting in category_settings:
                 output_html.append(self._make_category_setting_row(setting, setting_indent))
             output_html.append(self._make_category_footer(details_indent))
-
         # Get settings for each extruder
         #extruder_settings, extruder_label = self._get_category_settings_list("machine_settings", extruder_stack, i18n_extruder_catalog)
         #output_html.append(self._make_category_header(extruder_label, details_indent, "machine_settings"))
@@ -532,7 +728,7 @@ class HTMLSettingsExportReborn(Extension):
         scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
         if scripts_list :
             # Get post-processing scripts
-            output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), details_indent, "post_processing_scripts", two_column=True, two_column_titles=[catalog.i18nc("@settings:post_name", "Post-processor name"), catalog.i18nc("@settings:post_settings", "Post-processor settings")]))
+            output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), setting_profile.extruder_count, details_indent, "post_processing_scripts", two_column=True, two_column_titles=[catalog.i18nc("@settings:post_name", "Post-processor name"), catalog.i18nc("@settings:post_settings", "Post-processor settings")]))
             for script_str in scripts_list.split("\n"):
                 if not script_str:
                     continue
@@ -555,7 +751,17 @@ class HTMLSettingsExportReborn(Extension):
             output_html.append(self._make_category_footer(details_indent))
 
         end_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_end.html"))
-        end_html: str = ""
+        end_html_replacements: dict[str, str] = {
+            self.HTML_REPLACEMENT_DISABLED_SETTINGS_DISABLED: catalog.i18nc("@button:settings_disabled_disabled", "Hide disabled settings"),
+            self.HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED: catalog.i18nc("@button:settings_disabled_enabled", "Show disabled settings"),
+            self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED: catalog.i18nc("@button:settings_visible_disabled", "Hide settings not visible in profile"),
+            self.HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED: catalog.i18nc("@button:settings_visible_enabled", "Show settings not visible in profile"),
+            self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED: catalog.i18nc("@button:settings_local_disabled", "Show only user changes"),
+            self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED: catalog.i18nc("@button:settings_local_enabled", "Show all settings"),
+        }
+
+        end_html = self._load_file_with_replacements(end_html_file, end_html_replacements)
+        """end_html: str = ""
         try:
             with open(end_html_file, "r", encoding="utf-8") as end:
                 end_html = end.read()
@@ -568,7 +774,7 @@ class HTMLSettingsExportReborn(Extension):
                             .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED, catalog.i18nc("@button:settings_visible_disabled", "Hide settings not visible in profile"))
                             .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED, catalog.i18nc("@button:settings_visible_enabled", "Show settings not visible in profile"))
                             .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED, catalog.i18nc("@button:settings_local_disabled", "Show only user changes"))
-                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED, catalog.i18nc("@button:settings_local_enabled", "Show all settings")))
+                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED, catalog.i18nc("@button:settings_local_enabled", "Show all settings")))"""
         output_html.append(end_html)
         
         return "\n".join(output_html)
@@ -582,9 +788,6 @@ class HTMLSettingsExportReborn(Extension):
         :param setting_value: The current value of the setting.
         :return: True if the setting should be skipped, False otherwise.
         """
-
-        if not self._single_extruder:
-            return False
 
         # These keywords are hidden regardless of value
         multi_extruder_blacklist: list[str] = ["prime_tower", "prime_blob", "extruder_switch"]
@@ -601,7 +804,7 @@ class HTMLSettingsExportReborn(Extension):
 
         return False
 
-    def _make_category_header(self, text: str, base_indent: int, category_key: str, details_open: bool = True, two_column: bool = False, two_column_titles: list[str] = None) -> str:
+    def _make_category_header(self, text: str, extruder_count: int, base_indent: int, category_key: str, details_open: bool = True, two_column: bool = False, two_column_titles: list[str] = None) -> str:
         category_header: list[str] = []
         category_header.append(indent(f'<details class="collapsible-setting setting-{category_key}"{" open" if details_open else ""}>', base_indent))
         category_header.append(indent(f'<summary class="category-header"><h2>{html.escape(text)}</h2></summary>', base_indent + 1))
@@ -626,7 +829,7 @@ class HTMLSettingsExportReborn(Extension):
                 category_header.append(indent(f'<th>{html.escape(title)}</th>', base_indent + 4))
         else:
             category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@setting:label", "Setting"))}</th>', base_indent + 4))
-            for i in range(self._extruder_count):
+            for i in range(extruder_count):
                 category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@settings:extruder", "Extruder"))} #{i + 1}</th>', base_indent + 4))
         category_header.append(indent('</tr>', base_indent + 3))
         category_header.append(indent('</thead>', base_indent + 2))
@@ -693,7 +896,7 @@ class HTMLSettingsExportReborn(Extension):
             case _:
                 return catalog.i18nc("@settings:class_fallthrough", "")
 
-    def _get_category_settings_list(self, category_key: str, extruder_stack, local_catalog: i18nCatalog, children_local_stack: bool = False) -> tuple[list[CategorySetting], str]:
+    def _get_category_settings_list(self, category_key: str, extruder_stack, profile: SettingProfile, local_catalog: i18nCatalog, children_local_stack: bool = False) -> tuple[list[CategorySetting], str]:
         # Get translated category name... just make sure we're in a category
         translation_key = category_key + " label"
         category_translated = category_key  # We'll get value in a second, just use key as a fallback
@@ -716,11 +919,11 @@ class HTMLSettingsExportReborn(Extension):
             children_keys_list = [child_def.key for child_def in self._application.getGlobalContainerStack().getSettingDefinition(category_key).children]
 
         for child_key in children_keys_list:
-            category_settings.append(self._get_setting(child_key, category_key, extruder_stack, local_catalog, 0, children_local_stack))
+            category_settings.append(self._get_setting(child_key, category_key, extruder_stack, profile, local_catalog, 0, children_local_stack))
 
         return (category_settings, category_translated)
 
-    def _get_setting(self, key: str, category_key: str, extruder_stack, local_catalog: i18nCatalog, child_level: int = 0, children_local_stack: bool = False) -> CategorySetting:
+    def _get_setting(self, key: str, category_key: str, extruder_stack, profile: SettingProfile, local_catalog: i18nCatalog, child_level: int = 0, children_local_stack: bool = False) -> CategorySetting:
         setting = CategorySetting(key = key, child_level = child_level, extruder_count = len(extruder_stack))
         
         for i, extruder in enumerate(extruder_stack):
@@ -744,9 +947,9 @@ class HTMLSettingsExportReborn(Extension):
             # Figure out if it needs some special styling
             if not extruder.getProperty(key, "enabled"):
                 css_class = "disabled"
-            elif key in self._modified_global_settings or key in self._modified_extruder_settings[i]:
+            elif key in profile.global_changed_settings or key in profile.extruder_changed_settings[i]:
                 css_class = "local"
-            elif key not in self._visible_settings:
+            elif key not in profile.visible_settings:
                 css_class = "hidden"
             else:
                 css_class = "normal"
@@ -771,7 +974,7 @@ class HTMLSettingsExportReborn(Extension):
 
                 case "int" | "float":
                     # Pretty sure all the extruder ones are one of the above types but just in case
-                    if not self._single_extruder and "extruder_nr" in key:
+                    if profile.extruder_count > 1 and "extruder_nr" in key:
                         if setting_value == -1:
                             setting_string = catalog.i18nc("@setting:unchanged", "Not overridden")
                         else:
@@ -823,7 +1026,7 @@ class HTMLSettingsExportReborn(Extension):
             if setting_error:
                 setting.error_class[i] = setting_error
 
-            if self._single_extruder and category_key != "machine_settings":
+            if profile.extruder_count == 1 and category_key != "machine_settings":
                 if self._single_extruder_skip_setting(key, setting_value):
                     setting.skip = True
 
@@ -838,7 +1041,7 @@ class HTMLSettingsExportReborn(Extension):
             children_keys_list = [child_def.key for child_def in self._application.getGlobalContainerStack().getSettingDefinition(key).children]
 
         for child_key in children_keys_list:
-            setting.children[child_key] = self._get_setting(child_key, category_key, extruder_stack, local_catalog, child_level + 1, children_local_stack)
+            setting.children[child_key] = self._get_setting(child_key, category_key, extruder_stack, profile, local_catalog, child_level + 1, children_local_stack)
 
         return setting
 
