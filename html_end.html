@@ -3,7 +3,7 @@
             /* Setup toggle visibility buttons */
             function setupToggleButton(buttonId, className, disabledText, enabledText) {
                 var button = document.getElementById(buttonId);
-                if (button) { // Make sure button actually exists
+                if (button) { // Make sure button actually exists... it doesn't always.
                     // Helper function to update the button text
                     function updateButtonText() {
                         button.textContent = document.body.classList.contains(className) ? enabledText : disabledText;

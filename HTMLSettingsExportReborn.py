@@ -71,37 +71,41 @@ from UM.Settings.InstanceContainer import InstanceContainer
 from UM.Settings.Models.SettingPreferenceVisibilityHandler import \
     SettingPreferenceVisibilityHandler
 
+i18n_cura_catalog = i18nCatalog("cura")
+i18n_printer_catalog = i18nCatalog("fdmprinter.def.json")
+i18n_extruder_catalog = i18nCatalog("fdmextruder.def.json")
+
 class ExportMode(Enum):
     """More stuffup-proof than just using a string literal"""
     REPORT = auto()
     COMPARE = auto()
 
-def get_all_keys_from_setting_tree(
-    setting_nodes: list[Any],
-    key_attr_name: str = "key",
-    children_attr_name: str = "children"
-    ) -> list[str]:
-    """
-    Recursively parses a list of setting objects and returns a flat list of
-    all encountered setting keys, preserving their original order.
-    """
-    all_keys = []
-    for node in setting_nodes:
-        current_key = getattr(node, key_attr_name, None)
-        if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
-            current_key = node.get(key_attr_name)
+# def get_all_keys_from_setting_tree(
+#     setting_nodes: list[Any],
+#     key_attr_name: str = "key",
+#     children_attr_name: str = "children"
+#     ) -> list[str]:
+#     """
+#     Recursively parses a list of setting objects and returns a flat list of
+#     all encountered setting keys, preserving their original order.
+#     """
+#     all_keys = []
+#     for node in setting_nodes:
+#         current_key = getattr(node, key_attr_name, None)
+#         if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
+#             current_key = node.get(key_attr_name)
 
-        if current_key is not None:
-            all_keys.append(current_key)
+#         if current_key is not None:
+#             all_keys.append(current_key)
 
-        children = getattr(node, children_attr_name, None)
-        if children is None and isinstance(node, dict):
-            children = node.get(children_attr_name)
+#         children = getattr(node, children_attr_name, None)
+#         if children is None and isinstance(node, dict):
+#             children = node.get(children_attr_name)
 
-        if children:
-            all_keys.extend(get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
+#         if children:
+#             all_keys.extend(get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
 
-    return all_keys
+#     return all_keys
 
 @dataclass
 class CategorySetting:
@@ -116,11 +120,13 @@ class CategorySetting:
     child_level: int = 0
     children: dict[Optional[dict[str,"CategorySetting"]]] = field(default_factory = dict)
     skip: bool = False
+    extruders: int = 1
 
     extruder_count: InitVar[int] = 1
 
     def __post_init__(self, extruder_count: int):
         """Pre-populate lists so no pesky IndexErrors crop up"""
+        self.extruders = extruder_count
         self.value = [""] * extruder_count
         self.css_class = [""] * extruder_count
         self.error_class = [""] * extruder_count
@@ -129,11 +135,44 @@ class CategorySetting:
         """Format a string to be used for the HTML <title> attribute as a tooltip"""
         return f"{self.key}: {self.setting_type}"
 
+    def make_td_no_children(self, cell_indent: int = 0) -> str:
+        """Makes a <td> cell for each extruder for this setting (no recursion)"""
+        if self.skip:
+            return ""
+
+        td_lines = []
+
+        cell_class = []
+        cell_tooltip = []
+        for i, value in range(self.value):
+            if self.error_class[i]:
+                cell_class.append(self.error_class[i])
+            elif self.css_class[i]:
+                cell_class.append(self.css_class[i])
+            else:
+                cell_class.append("")
+            # Set tooltip based on class
+            cell_tooltip.append(HTMLSettingsExportReborn.css_class_to_human_readable(cell_class[i]))
+            display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")  # For when you want a safely escaped value which is subsequently unescaped.
+            td_lines.append(indent(f'<td class="{cell_class + " setting-value" if cell_class else "setting-value"}" title="{html.escape(cell_tooltip)}">{display_value}</td>', cell_indent))
+        return td_lines
+
+@dataclass
+class BlankSetting(CategorySetting):
+    """Holds a blank setting to use when comparing items.
+    It does however need the correct number of extruders."""
+
+    def make_td_no_children(self, cell_indent: int = 0) -> str:
+        """We're a blank so return empty cells"""
+        td_lines = []
+        for i in range(self.extruders):
+            td_lines.append(indent("<td></td>", cell_indent))
+        return td_lines
+
 @dataclass
 class SettingProfile:
     """Holds all the settings of a profile for comparison"""
-    # Outer key is category, inner key is Cura's internal key so they
-    # can be matched without iterating unti you find a match.
+    # Outer key is category, inner key is Cura's internal key
     settings: dict[str, list[CategorySetting]] = field(default_factory = dict)
     # Map Cura's internal key to translated labels
     settings_labels: dict[str, str] = field(default_factory = dict)
@@ -185,7 +224,13 @@ class SettingProfile:
                 children = item.get("children")
             if children:
                 flattened_dict.update(self.get_flattened_category_dict(children))
-            return flattened_dict
+        return flattened_dict
+
+    def get_flattened_all_categories_dict(self) -> dict[str, Any]:
+        flattened_dict = {}
+        for category, category_dict in self.settings.items():
+            flattened_dict[category] = self.get_flattened_category_dict(category_dict)
+        return flattened_dict
     
 
     # Used to produce the headers
@@ -279,6 +324,46 @@ class CompareProfiles:
         self.profile_a = profile_a
         self.profile_b = profile_b
 
+        # Get number of extruders (required for blank settings)
+        self.extruders_a = profile_a.extruder_count
+        self.extruders_b = profile_b.extruder_count
+        self.total_extruders = self.extruders_a + self.extruders_b
+
+        # Get flattened versions of all categories
+        self.profile_a_settings: dict[str, CategorySetting] = profile_a.get_flattened_all_categories_dict()
+        self.profile_b_settings: dict[str, CategorySetting] = profile_b.get_flattened_all_categories_dict()
+
+        # Do a lot of things to get a combined list of keys
+        self.category_keys: dict[str, list[str]] = {}
+        for category in self.profile_a_settings:
+            try:
+                aligned_list_a, aligned_list_b = self.align_setting_lists(
+                    list(self.profile_a_settings.keys()),
+                    list(self.profile_b_settings.keys())
+                )
+
+                combined_list = self.combine_aligned_lists(aligned_list_a, aligned_list_b)
+                self.category_keys[category] = combined_list
+            except KeyError as e:
+                Logger.logException("w", f"CompareProfiles.__init__() did not find category {category} in one profile: {e}")
+                self.category_keys[category] = self.profile_a_settings[category] if category in self.profile_a_settings else self.profile_b_settings[category]
+
+        # Fill any blanks for settings which don't exist in one profile
+        # In theory I just made sure both profiles have all categories so hopefully it doesn't raise an exception.
+        for category, category_setting_keys in self.category_keys.items():
+            try:
+                current_category_a = self.profile_a_settings[category]
+                current_category_b = self.profile_b_settings[category]
+            except KeyError as e:
+                Logger.logException("w", f"CompareProfiles.()__init__() did not find category {category} in both settings dictionaries: {e}")
+                continue
+            for key in category_setting_keys:
+                # In theory they have to be in at least one profile to be in the keys so I'm not checking to see if it doesn't exist in either
+                if key not in current_category_a:
+                    current_category_a[key] = BlankSetting(key = key, label = current_category_b[key].label, extruder_count = self.extruders_a)
+                if key not in current_category_b:
+                    current_category_b[key] = BlankSetting(key = key, label = current_category_a[key].label, extruder_count = self.extruders_b)
+            
     def align_setting_lists(self,
         list_a: list[Any],
         list_b: list[Any],
@@ -337,9 +422,68 @@ class CompareProfiles:
                 raise ValueError(f"CompareProfiles.combine_aligned_lists found falsy values in both lists at index {i}")
         return combined_list
 
-i18n_cura_catalog = i18nCatalog("cura")
-i18n_printer_catalog = i18nCatalog("fdmprinter.def.json")
-i18n_extruder_catalog = i18nCatalog("fdmextruder.def.json")
+    def make_setting_row(self, category, setting_key, base_indent: int = 0) -> list[str]:
+        """Has the label and settings from both profiles """
+        setting_row: list[str] = []
+        cell_tooltip: str = ""
+        label_a: str = ""
+        label_b: str = ""
+        child_level: int = -1
+        row_css_classes = []
+
+        setting_a: CategorySetting = self.profile_a_settings[category][setting_key]
+        setting_b: CategorySetting = self.profile_b_settings[category][setting_key]
+        # *Theoretically* the internal representation and child level should be
+        # the same if they both exist, so might as well take it from profile A.
+        if not isinstance(setting_a, BlankSetting):
+            label_a = setting_a.label
+            row_css_classes.extend(setting_a.css_class)
+            cell_tooltip = setting_a.internal_representation()
+            child_level = setting_a.child_level
+        if not isinstance(setting_b, BlankSetting):
+            label_b = setting_b.label
+            row_css_classes.extend(setting_b.css_class)
+            if cell_tooltip == "":
+                cell_tooltip = setting_b.internal_representation()
+            if child_level == -1:
+                child_level = setting_b.child_level
+
+        label: str = ""
+        if label_a == label_b:
+            label = label_a
+        elif label_a and not label_b:
+            label = label_a
+        elif label_b and not label_a:
+            label = label_b
+        else:
+            # They both exist but they're not the same. Did you change language on me between profiles? Profila A wins.
+            label = label_a
+
+        # Figure out if they're different
+        min_extruders = min(len(setting_a.value), len(setting_b.value))
+        different = setting_a.value[:min_extruders] == setting_b.value[:min_extruders]
+
+        row_css_class = HTMLSettingsExportReborn.get_css_row_class(row_css_classes)
+        setting_row.append(indent(f'<tr class="setting-row{(" " + row_css_class) if row_css_class else ""}{" compare-diff" if different else ""}">', base_indent))
+        child_prefix = HTMLSettingsExportReborn.CHILD_SPACER * child_level
+        label = html.escape(label).replace("\n", "<br>")
+        setting_row.append(indent(f'<td title="{html.escape(cell_tooltip)}" class="setting-label">{child_prefix}{label}</td>', base_indent + 1))
+
+        setting_row.extend(setting_a.make_td_no_children(base_indent + 1))
+        setting_row.extend(setting_b.make_td_no_children(base_indent + 1))
+        setting_row.append(indent("</tr>", base_indent))
+        return setting_row
+
+    def make_th_cells(self, base_indent: int = 0):
+        """Make <th> cells for profile A/B, extruder #"""
+        th_cells: list[str] = []
+        th_cells.append(indent(f'<th>{html.escape(catalog.i18nc("@setting:label", "Setting"))}</th>', base_indent))
+        for i in range(self.profile_a.extruder_count):
+            th_cells.append(indent(f'<th class="centre">{html.escape(catalog.i18nc("@compare:profile_a", "Profile A"))}\n{html.escape(catalog.i18nc("@compare:extruder_label", "Extruder #"))}{i}</th>'.replace("\n", "<br>"), base_indent))
+        for i in range(self.profile_b.extruder_count):
+            th_cells.append(indent(f'<th class="centre">{html.escape(catalog.i18nc("@compare:profile_a", "Profile B"))}\n{html.escape(catalog.i18nc("@compare:extruder_label", "Extruder #"))}{i}</th>'.replace("\n", "<br>"), base_indent))
+        return th_cells
+
 
 #Resources.addSearchPath(  # Don't have any translations so not really needed right now.
 #    os.path.join(os.path.abspath(os.path.dirname(__file__)),'resources')
@@ -372,8 +516,15 @@ class HTMLSettingsExportReborn(Extension):
     HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT: str = "$$$LOCAL_CHANGES_DEFAULT$$$"
     HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED: str = "$$$LOCAL_CHANGES_DISABLED$$$"
     HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED: str = "$$$LOCAL_CHANGES_ENABLED$$$"
+    HTML_REPLACEMENT_DIFFERENT_SETTINGS_DEFAULT: str = "$$$DIFFERENT_SETTINGS_DEFAULT$$$"
+    HTML_REPLACEMENT_DIFFERENT_SETTINGS_DISABLED: str = "$$$DIFFERENT_SETTINGS_DISABLED$$$"
+    HTML_REPLACEMENT_DIFFERENT_SETTINGS_ENABLED: str = "$$$DIFFERENT_SETTINGS_ENABLED$$$"
     HTML_REPLACEMENT_PROJECT_TITLE: str = "$$$PROJECT_NAME$$$"
     HTML_REPLACEMENT_PROFILE_NAME: str = "$$$PROFILE_NAME$$$"
+    HTML_REPLACEMENT_PROFILE_A: str = "$$$PROFILE_A$$$"
+    HTML_REPLACEMENT_PROFILE_A_NAME: str = "$$$PROFILE_A_NAME$$$"
+    HTML_REPLACEMENT_PROFILE_B: str = "$$$PROFILE_B$$$"
+    HTML_REPLACEMENT_PROFILE_B_NAME: str = "$$$PROFILE_B_NAME$$$"
     HTML_REPLACEMENT_SEARCH_PLACEHOLDER: str = "$$$SEARCH_SETTINGS_PLACEHOLDER$$$"
     HTML_REPLACEMENT_CLEAR_SEARCH: str = "$$$CLEAR_SEARCH$$$"
 
@@ -389,12 +540,34 @@ class HTMLSettingsExportReborn(Extension):
         self._plugin_dir = os.path.dirname(__file__)
 
         self._export_mode: ExportMode = ExportMode.REPORT
+        self._compare_profile_a: SettingProfile = None
+        self._compare_profile_b: SettingProfile = None
+        self._profile_compare: CompareProfiles = None
 
         self._export_fail = False  # I catch so many exceptions I sometimes end up with blank files
 
         # Set up menu item
         self.setMenuName("HTML Settings Export")
-        self.addMenuItem("Export settings", self._save_settings_html)
+        self.addMenuItem(catalog.i18nc("@menu:export", "Export settings"), self._save_report_html)
+        self.addMenuItem("  ", lambda: None)
+        self.addMenuItem(catalog.i18nc("@menu:compare_first", "Store first profile for comparison"), self._save_profile_a)
+        self.addMenuItem(catalog.i18nc("@menu:make_comparison", "Export comparison with first profile"), self._save_compare_html)
+
+    def _save_profile_a(self):
+        self._compare_profile_a = self._get_setting_profile()
+
+    def _save_compare_html(self):
+        if self._compare_profile_a is None:
+            Message(catalog.i18nc("@message:no_profile_a", "Please store a profile first"), title = catalog.i18nc("@message:plugin_title", "HTML Settings Export Reborn"))
+            return
+        self._compare_profile_b = self._get_setting_profile()
+        self._profile_compare = CompareProfiles(self._compare_profile_a, self._compare_profile_b)
+        self._export_mode = ExportMode.COMPARE
+        self._save_settings_html()
+
+    def _save_report_html(self):
+        self._export_mode = ExportMode.REPORT
+        self._save_settings_html()
 
     def _save_settings_html(self):
         # output_filename = os.path.abspath(os.path.join(self._plugin_dir, "cura_settings.html"))
@@ -479,7 +652,7 @@ class HTMLSettingsExportReborn(Extension):
         
         for key, value in replacements.items():
             Logger.log("d", f"Replacing {key} with {value}")
-            file = file.replace(key, value)
+            file = file.replace(key, html.escape(value))
         return file
 
     def _make_tr_2_cells(self, key: str, value: Any, tr_indent: int = 0, row_class: str = None) -> str:
@@ -635,26 +808,43 @@ class HTMLSettingsExportReborn(Extension):
 
         # Add header with CSS and start of page
         start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_start.html"))
-        sticky_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_sticky_report.html"))
+        report_sticky_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_sticky_report.html"))
+        compare_sticky_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_sticky_compare.html"))
         main_start_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_main_start.html"))
         
         start_html_replacements = {
             self.HTML_REPLACEMENT_TITLE: catalog.i18nc("@page:title", "Cura Print Settings"),
             self.HTML_REPLACEMENT_LANG: catalog.i18nc("@page:language", "en"),
         }
-        Logger.log("d", f"Before sticky_replacements, setting_profile.profile_name = {setting_profile.profile_name}")
-        sticky_replacements = {
+        sticky_replacements: dict[str, str] = {
             self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT: catalog.i18nc("@button:local_changes", "Toggle only user changes"),
             self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DEFAULT: catalog.i18nc("@button:visible_settings", "Toggle visible settings"),
             self.HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT: catalog.i18nc("@button:unused_settings", "Toggle disabled settings"),
-            self.HTML_REPLACEMENT_PROJECT_TITLE: print_information.jobName,
-            self.HTML_REPLACEMENT_PROFILE_NAME: setting_profile.profile_name,
             self.HTML_REPLACEMENT_SEARCH_PLACEHOLDER: catalog.i18nc("@page:search_placeholder", "Search settings..."),
             self.HTML_REPLACEMENT_CLEAR_SEARCH: catalog.i18nc("@button:clear_search", "Clear"),
         }
+        Logger.log("d", f"Before sticky_replacements, setting_profile.profile_name = {setting_profile.profile_name}")
+        if self._export_mode == ExportMode.REPORT:
+            report_replacements = {
+                self.HTML_REPLACEMENT_PROJECT_TITLE: print_information.jobName,
+                self.HTML_REPLACEMENT_PROFILE_NAME: setting_profile.profile_name,
+            }
+            sticky_replacements.update(report_replacements)
+        elif self._export_mode == ExportMode.COMPARE:
+            compare_replacements = {
+                self.HTML_REPLACEMENT_PROFILE_A: catalog.i18nc("@sticky:profile_a", "Profile A"),
+                self.HTML_REPLACEMENT_PROFILE_A_NAME: self._profile_compare.profile_a.profile_name,
+                self.HTML_REPLACEMENT_PROFILE_B: catalog.i18nc("@sticky:profile_b", "Profile B"),
+                self.HTML_REPLACEMENT_PROFILE_B_NAME: self._profile_compare.profile_b.profile_name,
+                self.HTML_REPLACEMENT_DIFFERENT_SETTINGS_DEFAULT: catalog.i18nc("@button:different_settings", "Toggle different settings"),
+            }
+            sticky_replacements.update(compare_replacements)
+        else:
+            self._export_fail = True
+            raise ValueError(f'Invalid export_mode: {self._export_mode}')
+        sticky_html: str = self._load_file_with_replacements(report_sticky_html_file if self._export_mode == ExportMode.REPORT else compare_sticky_html_file, sticky_replacements)
         Logger.log("d", f"Sticky replacements: {sticky_replacements}")
         start_html: str = self._load_file_with_replacements(start_html_file, start_html_replacements)
-        sticky_html: str = self._load_file_with_replacements(sticky_html_file, sticky_replacements)
 
         # Yes I realise it's just one line but it doesn't belong in the sticky
         main_start_html: str = self._load_file_with_replacements(main_start_html_file, {})
@@ -663,60 +853,74 @@ class HTMLSettingsExportReborn(Extension):
         output_html.append(sticky_html)
         output_html.append(main_start_html)
 
-        output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
-        # Project name
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
-        # Thumbnail
-        if encoded_snapshot:
-            output_html.append(indent(f'<tr><td colspan="2"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
-        # Date/time
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Date/time"), formatted_date_time), info_indent))
-        # Cura version
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Cura Version"), CuraVersion), info_indent))
+        if self._export_mode == ExportMode.REPORT:
+            output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
+            # Project name
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
+            # Thumbnail
+            if encoded_snapshot:
+                output_html.append(indent(f'<tr><td colspan="2"><img class="thumbnail" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
+            # Date/time
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Date/time"), formatted_date_time), info_indent))
+            # Cura version
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Cura Version"), CuraVersion), info_indent))
 
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Intent") if um_intent else catalog.i18nc("@label", "Profile"), preset_name), info_indent))
-        # Quality profile
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), profile_name), info_indent))
-        # Extruders enabled/materials (multiple extruders)
-        if setting_profile.extruder_count > 1:
-            extruders_enabled: list = []
-            extruder_materials: list = []
-            for extruder in extruder_stack:
-                extruders_enabled.append(extruder.getMetaDataEntry("enabled"))
-                extruder_materials.append(extruder.material.getMetaData().get("material", ""))
-            # Enabled extruders
-            extruders_enabled_html = self._make_ol_from_list(extruders_enabled, base_indent_level = info_indent)
-            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders enabled"), extruders_enabled_html), info_indent))
-            # Materials
-            extruder_materials_html = self._make_ol_from_list(extruder_materials, base_indent_level = info_indent)
-            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder materials"), extruder_materials_html), info_indent))
-        # Material (single extruder)
-        else:
-            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material"), extruder_stack[0].material.getMetaData().get("material", "")), info_indent))
-        # Material weight
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material weight used"), self._make_ol_from_list(list((round(x, 1) for x in print_information.materialWeights)), base_indent_level = info_indent, suffix = "g")), info_indent))
-        # Material length
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material length used"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialLengths)), info_indent, suffix = "m")), info_indent))
-        # Material cost
-        cura_currency = str(self._preferences.getValue("cura/currency"))
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material cost"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialCosts)), info_indent, prefix = cura_currency)), info_indent))
-        # Printing time
-        output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Estimated print time"), print_information.currentPrintTime.getDisplayString(DurationFormat.Format.Long)), info_indent))
-        # Close basic information table
-        output_html.append(indent('</table>', info_indent - 1))
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Intent") if um_intent else catalog.i18nc("@label", "Profile"), preset_name), info_indent))
+            # Quality profile
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Quality Profile"), profile_name), info_indent))
+            # Extruders enabled/materials (multiple extruders)
+            if setting_profile.extruder_count > 1:
+                extruders_enabled: list = []
+                extruder_materials: list = []
+                for extruder in extruder_stack:
+                    extruders_enabled.append(extruder.getMetaDataEntry("enabled"))
+                    extruder_materials.append(extruder.material.getMetaData().get("material", ""))
+                # Enabled extruders
+                extruders_enabled_html = self._make_ol_from_list(extruders_enabled, base_indent_level = info_indent)
+                output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruders enabled"), extruders_enabled_html), info_indent))
+                # Materials
+                extruder_materials_html = self._make_ol_from_list(extruder_materials, base_indent_level = info_indent)
+                output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Extruder materials"), extruder_materials_html), info_indent))
+            # Material (single extruder)
+            else:
+                output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material"), extruder_stack[0].material.getMetaData().get("material", "")), info_indent))
+            # Material weight
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material weight used"), self._make_ol_from_list(list((round(x, 1) for x in print_information.materialWeights)), base_indent_level = info_indent, suffix = "g")), info_indent))
+            # Material length
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material length used"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialLengths)), info_indent, suffix = "m")), info_indent))
+            # Material cost
+            cura_currency = str(self._preferences.getValue("cura/currency"))
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Material cost"), self._make_ol_from_list(list((round(x, 2) for x in print_information.materialCosts)), info_indent, prefix = cura_currency)), info_indent))
+            # Printing time
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Estimated print time"), print_information.currentPrintTime.getDisplayString(DurationFormat.Format.Long)), info_indent))
+            # Close basic information table
+            output_html.append(indent('</table>', info_indent - 1))
 
 
         # Actually output from our SettingProfile
-        for category, category_settings in setting_profile.settings.items():
-            category_label = setting_profile.settings_labels[category]
+        if self._export_mode == ExportMode.REPORT:
+            for category, category_settings in setting_profile.settings.items():
+                category_label = setting_profile.settings_labels[category]
 
-            details_open = True  # Almost always true
-            if category == "dual" and setting_profile.extruder_count == 1:
-                details_open = False
-            output_html.append(self._make_category_header(category_label, setting_profile.extruder_count, details_indent, category, details_open))
-            for setting in category_settings:
-                output_html.append(self._make_category_setting_row(setting, setting_indent))
-            output_html.append(self._make_category_footer(details_indent))
+                details_open = True  # Almost always true
+                if category == "dual" and setting_profile.extruder_count == 1:
+                    details_open = False
+                output_html.append(self._make_category_header(category_label, setting_profile.extruder_count, details_indent, category, details_open))
+                for setting in category_settings:
+                    output_html.append(self._make_category_setting_row(setting, setting_indent))
+                output_html.append(self._make_category_footer(details_indent))
+        elif self._export_mode == ExportMode.COMPARE:
+            for category, category_settings in self._profile_compare.category_keys.items():
+                # If you've changed your language between profiles you'll have to live with your first choice
+                category_label = self._profile_compare.profile_a.settings_labels[category]
+
+                details_open = True  # Almost always true
+                if category == "dual" and setting_profile.extruder_count == 1:
+                    details_open = False
+                output_html.append(self._make_category_header(category_label, self._profile_compare.total_extruders, details_indent, category, details_open))
+                for setting in category_settings:
+                    output_html.append(self._profile_compare.make_setting_row(category, setting, setting_indent))
+                output_html.append(self._make_category_footer(details_indent))
         # Get settings for each extruder
         #extruder_settings, extruder_label = self._get_category_settings_list("machine_settings", extruder_stack, i18n_extruder_catalog)
         #output_html.append(self._make_category_header(extruder_label, details_indent, "machine_settings"))
@@ -724,31 +928,31 @@ class HTMLSettingsExportReborn(Extension):
         #    output_html.append(self._make_category_setting_row(setting, setting_indent))
         #output_html.append(self._make_category_footer(details_indent))
 
-
-        scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
-        if scripts_list :
-            # Get post-processing scripts
-            output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), setting_profile.extruder_count, details_indent, "post_processing_scripts", two_column=True, two_column_titles=[catalog.i18nc("@settings:post_name", "Post-processor name"), catalog.i18nc("@settings:post_settings", "Post-processor settings")]))
-            for script_str in scripts_list.split("\n"):
-                if not script_str:
-                    continue
-                script_str = script_str.replace(r"\\\n", "\n").replace(r"\\\\", "\\\\")  # Unescape escape sequences.
-                script_parser = configparser.ConfigParser(interpolation=None)
-                script_parser.optionxform = str  # type: ignore  # Don't transform the setting keys as they are case-sensitive.
-                try:
-                    script_parser.read_string(script_str)
-                except configparser.Error as e:
-                    Logger.log("e", f"Stored post-processing scripts have syntax errors: {e}")
-                    continue
-                for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
-                    if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
+        if self._export_mode == ExportMode.REPORT:
+            scripts_list = global_stack.getMetaDataEntry("post_processing_scripts")
+            if scripts_list :
+                # Get post-processing scripts
+                output_html.append(self._make_category_header(catalog.i18nc("@label", "Post-processing scripts"), setting_profile.extruder_count, details_indent, "post_processing_scripts", two_column=True, two_column_titles=[catalog.i18nc("@settings:post_name", "Post-processor name"), catalog.i18nc("@settings:post_settings", "Post-processor settings")]))
+                for script_str in scripts_list.split("\n"):
+                    if not script_str:
                         continue
-                    setting_param = ""
-                    for setting_key, setting_value in settings.items():
-                        setting_param += f'{html.escape(setting_key)}: {html.escape(setting_value)}<br>'  # Have to escape it here because I'm deliberately adding the <br>s
-                    output_html.append(self._make_tr_2_cells(html.escape(script_name), setting_param.rstrip("<br>"), info_indent + 1, "posts-settings"))
+                    script_str = script_str.replace(r"\\\n", "\n").replace(r"\\\\", "\\\\")  # Unescape escape sequences.
+                    script_parser = configparser.ConfigParser(interpolation=None)
+                    script_parser.optionxform = str  # type: ignore  # Don't transform the setting keys as they are case-sensitive.
+                    try:
+                        script_parser.read_string(script_str)
+                    except configparser.Error as e:
+                        Logger.log("e", f"Stored post-processing scripts have syntax errors: {e}")
+                        continue
+                    for script_name, settings in script_parser.items():  # There should only be one, really! Otherwise we can't guarantee the order or allow multiple uses of the same script.
+                        if script_name == "DEFAULT":  # ConfigParser always has a DEFAULT section, but we don't fill it. Ignore this one.
+                            continue
+                        setting_param = ""
+                        for setting_key, setting_value in settings.items():
+                            setting_param += f'{html.escape(setting_key)}: {html.escape(setting_value)}<br>'  # Have to escape it here because I'm deliberately adding the <br>s
+                        output_html.append(self._make_tr_2_cells(html.escape(script_name), setting_param.rstrip("<br>"), info_indent + 1, "posts-settings"))
 
-            output_html.append(self._make_category_footer(details_indent))
+                output_html.append(self._make_category_footer(details_indent))
 
         end_html_file = os.path.abspath(os.path.join(self._plugin_dir, "html_end.html"))
         end_html_replacements: dict[str, str] = {
@@ -756,25 +960,14 @@ class HTMLSettingsExportReborn(Extension):
             self.HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED: catalog.i18nc("@button:settings_disabled_enabled", "Show disabled settings"),
             self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED: catalog.i18nc("@button:settings_visible_disabled", "Hide settings not visible in profile"),
             self.HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED: catalog.i18nc("@button:settings_visible_enabled", "Show settings not visible in profile"),
-            self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED: catalog.i18nc("@button:settings_local_disabled", "Show only user changes"),
-            self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED: catalog.i18nc("@button:settings_local_enabled", "Show all settings"),
+            self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED: catalog.i18nc("@button:settings_local_disabled", "Filter to only user changes"),
+            self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED: catalog.i18nc("@button:settings_local_enabled", "Remove user changes filter"),
+            self.HTML_REPLACEMENT_DIFFERENT_SETTINGS_DISABLED: catalog.i18nc("@button:settings_different_disabled", "Filter to only different settings"),
+            self.HTML_REPLACEMENT_DIFFERENT_SETTINGS_ENABLED: catalog.i18nc("@button:settings_different_enabled", "Remove different settings filter"),
         }
 
         end_html = self._load_file_with_replacements(end_html_file, end_html_replacements)
-        """end_html: str = ""
-        try:
-            with open(end_html_file, "r", encoding="utf-8") as end:
-                end_html = end.read()
-        except Exception:
-            Logger.logException("e", "Exception trying to read html_end.html")
-            self._export_fail = True
-            return ""
-        end_html = (end_html.replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_DISABLED, catalog.i18nc("@button:settings_disabled_disabled", "Hide disabled settings"))
-                            .replace(self.HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED, catalog.i18nc("@button:settings_disabled_enabled", "Show disabled settings"))
-                            .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_DISABLED, catalog.i18nc("@button:settings_visible_disabled", "Hide settings not visible in profile"))
-                            .replace(self.HTML_REPLACEMENT_VISIBLE_SETTINGS_ENABLED, catalog.i18nc("@button:settings_visible_enabled", "Show settings not visible in profile"))
-                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_DISABLED, catalog.i18nc("@button:settings_local_disabled", "Show only user changes"))
-                            .replace(self.HTML_REPLACEMENT_LOCAL_CHANGES_ENABLED, catalog.i18nc("@button:settings_local_enabled", "Show all settings")))"""
+
         output_html.append(end_html)
         
         return "\n".join(output_html)
@@ -827,7 +1020,10 @@ class HTMLSettingsExportReborn(Extension):
             two_column_titles = [item if isinstance(item, str) else "" for item in two_column_titles]
             for title in two_column_titles:
                 category_header.append(indent(f'<th>{html.escape(title)}</th>', base_indent + 4))
+        elif self._export_mode == ExportMode.COMPARE:
+            category_header.extend(self._profile_compare.make_th_cells(base_indent + 4))
         else:
+            # If self_export_mode wasn't valid it should have raised an exception well before now
             category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@setting:label", "Setting"))}</th>', base_indent + 4))
             for i in range(extruder_count):
                 category_header.append(indent(f'<th>{html.escape(catalog.i18nc("@settings:extruder", "Extruder"))} #{i + 1}</th>', base_indent + 4))
@@ -839,7 +1035,7 @@ class HTMLSettingsExportReborn(Extension):
     def _make_category_setting_row(self, setting: CategorySetting, base_indent: int = 0) -> str:
         if setting.skip:
             return ""
-        row_css_class = self._get_css_row_class(setting.css_class)
+        row_css_class = self.get_css_row_class(setting.css_class)
         category_setting_html_lines: list[str] = []
         category_setting_html_lines.append(indent(f'<tr class="setting-row{(" " + row_css_class) if row_css_class else ""}">', base_indent))
         cell_tooltip = setting.internal_representation()
@@ -852,8 +1048,8 @@ class HTMLSettingsExportReborn(Extension):
                 cell_class = setting.css_class[i]
             else:
                 cell_class = ""
-            class_tooltip = self._css_class_to_human_readable(cell_class if cell_class else row_css_class)
-            display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")
+            class_tooltip = self.css_class_to_human_readable(cell_class if cell_class else row_css_class)
+            display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")  # For when you want a safely escaped value which is subsequently unescaped.
             category_setting_html_lines.append(indent(f'<td class="{cell_class + " setting-value" if cell_class else "setting-value"}" title="{html.escape(class_tooltip)}">{display_value}</td>', base_indent + 1))
         category_setting_html_lines.append(indent('</tr>', base_indent))
         for child_key in setting.children:
@@ -864,9 +1060,12 @@ class HTMLSettingsExportReborn(Extension):
     def _make_category_footer(self, base_indent: int):
         return f'{indent("</tbody>", base_indent + 2)}\n{indent("</table>", base_indent + 1)}\n{indent("</details>", base_indent)}'
 
-    def _get_css_row_class(self, classes: list[str] | str) -> str:
+    @staticmethod
+    def get_css_row_class(classes: list[str] | str) -> str:
         if isinstance(classes, str):
             return classes
+
+        classes = [value for value in classes if value != ""]
 
         # local > disabled > hidden > normal
         possible_classes = ("local", "disabled", "hidden", "normal")
@@ -879,7 +1078,8 @@ class HTMLSettingsExportReborn(Extension):
                 return f"some-{possible_class}"
         return "normal"  # Fallback if they're all normal
 
-    def _css_class_to_human_readable(self, css_class: str) -> str:
+    @staticmethod
+    def css_class_to_human_readable(css_class: str) -> str:
         match css_class:
             case "local":
                 return catalog.i18nc("@setting:class_local", "User set")
