@@ -80,33 +80,6 @@ class ExportMode(Enum):
     REPORT = auto()
     COMPARE = auto()
 
-# def get_all_keys_from_setting_tree(
-#     setting_nodes: list[Any],
-#     key_attr_name: str = "key",
-#     children_attr_name: str = "children"
-#     ) -> list[str]:
-#     """
-#     Recursively parses a list of setting objects and returns a flat list of
-#     all encountered setting keys, preserving their original order.
-#     """
-#     all_keys = []
-#     for node in setting_nodes:
-#         current_key = getattr(node, key_attr_name, None)
-#         if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
-#             current_key = node.get(key_attr_name)
-
-#         if current_key is not None:
-#             all_keys.append(current_key)
-
-#         children = getattr(node, children_attr_name, None)
-#         if children is None and isinstance(node, dict):
-#             children = node.get(children_attr_name)
-
-#         if children:
-#             all_keys.extend(get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
-
-#     return all_keys
-
 @dataclass
 class CategorySetting:
     """Holds each setting so I can combine them all at the end of a category"""
@@ -135,7 +108,7 @@ class CategorySetting:
         """Format a string to be used for the HTML <title> attribute as a tooltip"""
         return f"{self.key}: {self.setting_type}"
 
-    def make_td_no_children(self, cell_indent: int = 0) -> str:
+    def make_td_no_children(self, cell_indent: int = 0) -> list[str]:
         """Makes a <td> cell for each extruder for this setting (no recursion)"""
         if self.skip:
             return ""
@@ -144,7 +117,7 @@ class CategorySetting:
 
         cell_class = []
         cell_tooltip = []
-        for i, value in range(self.value):
+        for i, value in enumerate(self.value):
             if self.error_class[i]:
                 cell_class.append(self.error_class[i])
             elif self.css_class[i]:
@@ -154,7 +127,7 @@ class CategorySetting:
             # Set tooltip based on class
             cell_tooltip.append(HTMLSettingsExportReborn.css_class_to_human_readable(cell_class[i]))
             display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")  # For when you want a safely escaped value which is subsequently unescaped.
-            td_lines.append(indent(f'<td class="{cell_class + " setting-value" if cell_class else "setting-value"}" title="{html.escape(cell_tooltip)}">{display_value}</td>', cell_indent))
+            td_lines.append(indent(f'<td class="{cell_class[i] + " setting-value" if cell_class[i] else "setting-value"}" title="{html.escape(cell_tooltip[i])}">{display_value}</td>', cell_indent))
         return td_lines
 
 @dataclass
@@ -162,7 +135,7 @@ class BlankSetting(CategorySetting):
     """Holds a blank setting to use when comparing items.
     It does however need the correct number of extruders."""
 
-    def make_td_no_children(self, cell_indent: int = 0) -> str:
+    def make_td_no_children(self, cell_indent: int = 0) -> list[str]:
         """We're a blank so return empty cells"""
         td_lines = []
         for i in range(self.extruders):
@@ -183,46 +156,32 @@ class SettingProfile:
     extruder_changed_settings: list[list[Any]] = field(default_factory = list)
     visible_settings: list[Any] = field(default_factory = list)
 
-    """def get_all_keys_from_setting_tree(
-        self,
-        setting_nodes: list[Any],
-        key_attr_name: str = 'key',
-        children_attr_name: str = 'children'
-    ) -> list[str]:
-        ""
-        Recursively parses a list of setting objects and returns a flat list of
-        all encountered setting keys, preserving their original order.
-        ""
-        all_keys = []
-        for node in setting_nodes:
-            current_key = getattr(node, key_attr_name, None)
-            if current_key is None and isinstance(node, dict): # Handle dicts if your nodes can be dicts
-                current_key = node.get(key_attr_name)
-
-            if current_key is not None:
-                all_keys.append(current_key)
-
-            children = getattr(node, children_attr_name, None)
-            if children is None and isinstance(node, dict):
-                children = node.get(children_attr_name)
-
-            if children:
-                all_keys.extend(self.get_all_keys_from_setting_tree(children, key_attr_name, children_attr_name))
-
-        return all_keys"""
-
     def get_flattened_category_dict(self, category: list | dict) -> dict[str, Any]:
         flattened_dict = {}
-        for item in category:
+
+        items_to_process = []
+        if isinstance(category, dict):
+            items_to_process = (category.values())
+        elif isinstance(category, list):
+            items_to_process = category
+        else:
+            raise TypeError(f"SettingProfile.get_flattened_category_dict got something that wasn't a dict or a list: {category}")
+
+        for item in items_to_process:
             new_key = getattr(item, "key", None)
             if new_key is None and isinstance(item, dict):
                 new_key = item.get("key")
-            flattened_dict[new_key] = item
-        
+            
+            if new_key is not None: # Only add to flattened_dict if we found a valid key
+                flattened_dict[new_key] = item
+            else:
+                Logger.log("w", f"Skipping item in flattening as no valid key found: {item} (type: {type(item)})")
+
             children = getattr(item, "children", None)
             if children is None and isinstance(item, dict):
                 children = item.get("children")
-            if children:
+            
+            if children: # Only recurse if children exist
                 flattened_dict.update(self.get_flattened_category_dict(children))
         return flattened_dict
 
@@ -245,79 +204,6 @@ class SettingProfile:
             self.settings[category] = []
             self.settings_labels[category] = ""
 
-    """def get_ordered_setting_keys(self) -> list[str]:
-        ""
-        Extracts and returns all setting keys present in this specific
-        SettingProfile instance, in their hierarchical display order.
-        ""
-        all_profile_keys = []
-        # Iterate through the CATEGORIES in the order Cura provides them,
-        # then recursively get keys from the CategorySetting objects within each.
-        # Assuming the dict.keys() iteration order is stable (Python 3.7+ dicts preserve insertion order).
-        for category_name in self.settings.keys():
-            # Get the list of top-level CategorySetting objects for this category
-            top_level_settings_in_category = self.settings[category_name]
-            
-            # Recursively get all keys from this list of CategorySetting objects
-            all_profile_keys.extend(
-                get_all_keys_from_setting_tree(
-                    top_level_settings_in_category,
-                    key_attr_name='key',      # The name of the attribute holding the key
-                    children_attr_name='children' # The name of the attribute holding children
-                )
-            )
-        return all_profile_keys""
-
-    ""def combine_profiles(self, other: "SettingProfile"):
-        empty_values_a: list[str] = [""] * sum(self.extruder_counts)
-        empty_values_b: list[str] = [""] * sum(other.extruder_counts)
-        
-        self.extruder_counts.extend(other.extruder_counts)
-        self.profile_names.extend(other.profile_names)
-        self.preset_names.extend(other.preset_names)
-
-        # Make sure self includes all categories from other
-        for category_key in other.settings.keys():
-            if category_key not in self.settings:
-                self.settings[category_key] = other.settings[category_key].copy()
-            # Settings and labels use the same keys
-            if category_key not in self.settings_labels:
-                self.settings_labels[category_key] = other.settings_labels[category_key]
-
-        # Now combine for each category
-        for category_key in self.settings:
-            self.settings[category_key] = self._recursive_combine_settings_dicts(
-                self.settings[category_key], other.settings.get(category_key, {}), empty_values_a, empty_values_b)""
-
-    def _recursive_combine_settings_dicts(self, dict_a: dict[str, CategorySetting], dict_b: dict[str, CategorySetting], empty_values_a: list = None, empty_values_b: list = None) -> dict[str, CategorySetting]:
-        if not empty_values_a:
-            empty_values_a = [""]
-        if not empty_values_b:
-            empty_values_b = [""]
-        for key_b, value_b in dict_b.items():
-            if key_b not in dict_a:
-                dict_a[key_b] = value_b
-                dict_a[key_b].value[0:0] = empty_values_a
-                dict_a[key_b].css_class[0:0] = empty_values_a
-                dict_a[key_b].error_class[0:0] = empty_values_a
-            else:
-                dict_a[key_b].value.extend(value_b.value)
-                dict_a[key_b].css_class.extend(value_b.css_class)
-                dict_a[key_b].error_class.extend(value_b.error_class)
-
-        for key in dict_a:
-            if key not in dict_b:
-                dict_a[key].value.extend(empty_values_b)
-                dict_a[key].css_class.extend(empty_values_b)
-                dict_a[key].error_class.extend(empty_values_b)
-
-        for item_key in list(dict_a.keys):
-            children_to_combine = dict_b[item_key].children if dict_b.get(item_key) else {}
-            dict_a[item_key].children = self._recursive_combine_settings_dicts(
-                dict_a[item_key].children, children_to_combine, empty_values_a, empty_values_b)
-            
-        return dict_a"""
-
 class CompareProfiles:
 
     def __init__(self, profile_a: SettingProfile, profile_b: SettingProfile):
@@ -335,34 +221,61 @@ class CompareProfiles:
 
         # Do a lot of things to get a combined list of keys
         self.category_keys: dict[str, list[str]] = {}
-        for category in self.profile_a_settings:
-            try:
-                aligned_list_a, aligned_list_b = self.align_setting_lists(
-                    list(self.profile_a_settings.keys()),
-                    list(self.profile_b_settings.keys())
-                )
-
-                combined_list = self.combine_aligned_lists(aligned_list_a, aligned_list_b)
-                self.category_keys[category] = combined_list
-            except KeyError as e:
-                Logger.logException("w", f"CompareProfiles.__init__() did not find category {category} in one profile: {e}")
-                self.category_keys[category] = self.profile_a_settings[category] if category in self.profile_a_settings else self.profile_b_settings[category]
+        # Both profiles should have the same list of categores but just in case
+        all_combined_categories = list(self.profile_a_settings.keys())
+        all_combined_categories.extend([key for key in list(self.profile_b_settings.keys()) if key not in all_combined_categories])
+        for category in all_combined_categories:
+            current_category_a_settings_dict = self.profile_a_settings.get(category, {})
+            current_category_b_settings_dict = self.profile_b_settings.get(category, {})
+            #try:
+            setting_keys_a = list(current_category_a_settings_dict.keys())
+            setting_keys_b = list(current_category_b_settings_dict.keys())
+            Logger.log("d", f'category = {category}\nsetting_keys_a = {setting_keys_a}\nsetting_keys_b = {setting_keys_b}')
+            aligned_list_a, aligned_list_b = self.align_setting_lists(
+                setting_keys_a, setting_keys_b
+            )
+            Logger.log("d", f'category = {category}\naligned_list_a = {aligned_list_a}\naligned_list_b = {aligned_list_b}')
+            combined_list = self.combine_aligned_lists(aligned_list_a, aligned_list_b)
+            self.category_keys[category] = combined_list
+            #except KeyError as e:
+            #    Logger.logException("w", f"CompareProfiles.__init__() did not find category {category} in one profile: {e}")
+            #    self.category_keys[category] = self.profile_a_settings[category] if category in self.profile_a_settings else self.profile_b_settings[category]
 
         # Fill any blanks for settings which don't exist in one profile
         # In theory I just made sure both profiles have all categories so hopefully it doesn't raise an exception.
         for category, category_setting_keys in self.category_keys.items():
-            try:
-                current_category_a = self.profile_a_settings[category]
-                current_category_b = self.profile_b_settings[category]
-            except KeyError as e:
-                Logger.logException("w", f"CompareProfiles.()__init__() did not find category {category} in both settings dictionaries: {e}")
-                continue
+            #try:
+            current_category_a = self.profile_a_settings.get(category, {})
+            current_category_b = self.profile_b_settings.get(category, {})
+            #except KeyError as e:
+            #    Logger.logException("w", f"CompareProfiles.()__init__() did not find category {category} in both settings dictionaries: {e}")
+            #   continue
+            Logger.log("d", f'current_category_a = {current_category_a}\ncategory = {category}\ncategory_setting_keys = {category_setting_keys}')
             for key in category_setting_keys:
                 # In theory they have to be in at least one profile to be in the keys so I'm not checking to see if it doesn't exist in either
                 if key not in current_category_a:
-                    current_category_a[key] = BlankSetting(key = key, label = current_category_b[key].label, extruder_count = self.extruders_a)
+                    label_for_blank_a = ""
+                    # Safely get the label for the BlankSetting
+                    if key in current_category_b: # Prioritize label from profile B if it exists there
+                        label_for_blank_a = current_category_b[key].label
+                    elif key in self.profile_a.settings_labels: # Fallback to top-level settings_labels
+                        label_for_blank_a = self.profile_a.settings_labels[key]
+                    elif key in self.profile_b.settings_labels:
+                        label_for_blank_a = self.profile_b.settings_labels[key]
+                    else: # Final fallback, use the key itself if no label found
+                        label_for_blank_a = key
+                    current_category_a[key] = BlankSetting(key = key, label = label_for_blank_a, extruder_count = self.extruders_a)
                 if key not in current_category_b:
-                    current_category_b[key] = BlankSetting(key = key, label = current_category_a[key].label, extruder_count = self.extruders_b)
+                    label_for_blank_b = ""
+                    if key in current_category_a: # Prioritize label from profile A if it exists there
+                        label_for_blank_b = current_category_a[key].label
+                    elif key in self.profile_b.settings_labels:
+                        label_for_blank_b = self.profile_b.settings_labels[key]
+                    elif key in self.profile_a.settings_labels:
+                        label_for_blank_b = self.profile_a.settings_labels[key]
+                    else:
+                        label_for_blank_b = key
+                    current_category_b[key] = BlankSetting(key = key, label = label_for_blank_b, extruder_count = self.extruders_b)
             
     def align_setting_lists(self,
         list_a: list[Any],
@@ -422,7 +335,7 @@ class CompareProfiles:
                 raise ValueError(f"CompareProfiles.combine_aligned_lists found falsy values in both lists at index {i}")
         return combined_list
 
-    def make_setting_row(self, category, setting_key, base_indent: int = 0) -> list[str]:
+    def make_setting_row(self, category, setting_key, base_indent: int = 0) -> str:
         """Has the label and settings from both profiles """
         setting_row: list[str] = []
         cell_tooltip: str = ""
@@ -461,7 +374,7 @@ class CompareProfiles:
 
         # Figure out if they're different
         min_extruders = min(len(setting_a.value), len(setting_b.value))
-        different = setting_a.value[:min_extruders] == setting_b.value[:min_extruders]
+        different = setting_a.value[:min_extruders] != setting_b.value[:min_extruders]
 
         row_css_class = HTMLSettingsExportReborn.get_css_row_class(row_css_classes)
         setting_row.append(indent(f'<tr class="setting-row{(" " + row_css_class) if row_css_class else ""}{" compare-diff" if different else ""}">', base_indent))
@@ -472,9 +385,9 @@ class CompareProfiles:
         setting_row.extend(setting_a.make_td_no_children(base_indent + 1))
         setting_row.extend(setting_b.make_td_no_children(base_indent + 1))
         setting_row.append(indent("</tr>", base_indent))
-        return setting_row
+        return "\n".join(setting_row)
 
-    def make_th_cells(self, base_indent: int = 0):
+    def make_th_cells(self, base_indent: int = 0) -> str:
         """Make <th> cells for profile A/B, extruder #"""
         th_cells: list[str] = []
         th_cells.append(indent(f'<th>{html.escape(catalog.i18nc("@setting:label", "Setting"))}</th>', base_indent))
@@ -507,6 +420,7 @@ class HTMLSettingsExportReborn(Extension):
     # enabled = doing its thing (so the text is to set things back to normal).
     HTML_REPLACEMENT_TITLE: str = "$$$TITLE$$$"
     HTML_REPLACEMENT_LANG: str = "$$$LANG$$$"
+    HTML_REPLACEMENT_TABLE_COLUMNS: str = "$$$TABLE_COLUMNS$$$"
     HTML_REPLACEMENT_DISABLED_SETTINGS_DEFAULT: str = "$$$DISABLED_SETTINGS_DEFAULT$$$"
     HTML_REPLACEMENT_DISABLED_SETTINGS_DISABLED: str = "$$$DISABLED_SETTINGS_DISABLED$$$"
     HTML_REPLACEMENT_DISABLED_SETTINGS_ENABLED: str = "$$$DISABLED_SETTINGS_ENABLED$$$"
@@ -558,7 +472,7 @@ class HTMLSettingsExportReborn(Extension):
 
     def _save_compare_html(self):
         if self._compare_profile_a is None:
-            Message(catalog.i18nc("@message:no_profile_a", "Please store a profile first"), title = catalog.i18nc("@message:plugin_title", "HTML Settings Export Reborn"))
+            Message(catalog.i18nc("@message:no_profile_a", "Please store a profile first"), title = catalog.i18nc("@message:plugin_title", "HTML Settings Export Reborn")).show()
             return
         self._compare_profile_b = self._get_setting_profile()
         self._profile_compare = CompareProfiles(self._compare_profile_a, self._compare_profile_b)
@@ -815,6 +729,7 @@ class HTMLSettingsExportReborn(Extension):
         start_html_replacements = {
             self.HTML_REPLACEMENT_TITLE: catalog.i18nc("@page:title", "Cura Print Settings"),
             self.HTML_REPLACEMENT_LANG: catalog.i18nc("@page:language", "en"),
+            self.HTML_REPLACEMENT_TABLE_COLUMNS: setting_profile.extruder_count if self._export_mode == ExportMode.REPORT else self._profile_compare.total_extruders
         }
         sticky_replacements: dict[str, str] = {
             self.HTML_REPLACEMENT_LOCAL_CHANGES_DEFAULT: catalog.i18nc("@button:local_changes", "Toggle only user changes"),

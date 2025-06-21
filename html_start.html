@@ -10,7 +10,7 @@
                 --value-col-width: 135px;
                 --category-cell-spacing: 5px;
 
-                --category-table-width: calc(var(--label-col-width) + var(--value-col-width) + (var(--category-cell-spacing) * 2));
+                --category-table-width: calc(var(--label-col-width) + (var(--value-col-width) * $$$TABLE_COLUMNS$$$) + (var(--category-cell-spacing) * $$$TABLE_COLUMNS$$$ - 1));
                 --posts-settings-width: calc(var(--value-col-width) * 2);
             }
             /* Use box sizing so I don't have to calculate things myself */
@@ -140,6 +140,7 @@
                  display: none;  /* Hide <details> block if it contains no user changed settings */
             }
             body.hide-visible tr.visible { display: none; }
+            body.hide-diff tr.compare-diff { display: none; }
 
             body.search-active details:not(:has(tr.search-show)) {
                  display: none !important; /* Hide <details> block if it contains no search results */
