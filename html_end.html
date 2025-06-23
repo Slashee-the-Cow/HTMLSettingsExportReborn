@@ -1,86 +1,84 @@
-        </div>
-        <script>
-            /* Setup toggle visibility buttons */
-            function setupToggleButton(buttonId, className, disabledText, enabledText) {
-                var button = document.getElementById(buttonId);
-                if (button) { // Make sure button actually exists... it doesn't always.
-                    // Helper function to update the button text
-                    function updateButtonText() {
-                        button.textContent = document.body.classList.contains(className) ? enabledText : disabledText;
-                    }
+		</div>
+		<script>
+			/* Setup toggle visibility buttons */
+			function setupToggleButton(buttonId, className, disabledText, enabledText) {
+				var button = document.getElementById(buttonId);
+				if (button) { // Make sure button actually exists... it doesn't always.
+					// Helper function to update the button text
+					function updateButtonText() {
+						button.textContent = document.body.classList.contains(className) ? enabledText : disabledText;
+					}
 
-                    // Set text when the page loads
-                    updateButtonText();
+					// Set text when the page loads
+					updateButtonText();
 
-                    button.addEventListener("click", function() {
-                        document.body.classList.toggle(className);
-                        updateButtonText();
-                    });
-                };
-            };
+					button.addEventListener("click", function() {
+						document.body.classList.toggle(className);
+						updateButtonText();
+					});
+				};
+			};
 
-            setupToggleButton("disabled_settings", "hide-disabled", "$$$DISABLED_SETTINGS_DISABLED$$$", "$$$DISABLED_SETTINGS_ENABLED$$$");
-            setupToggleButton("visible_settings", "hide-visible", "$$$VISIBLE_SETTINGS_DISABLED$$$", "$$$VISIBLE_SETTINGS_ENABLED$$$");
-            setupToggleButton("local_settings", "hide-local", "$$$LOCAL_CHANGES_DISABLED$$$", "$$$LOCAL_CHANGES_ENABLED$$$");
-            setupToggleButton("different_settings", "hide-diff", "$$$DIFFERENT_SETTINGS_DISABLED$$$", "$$$DIFFERENT_SETTINGS_ENABLED$$$");
+			setupToggleButton("disabled_settings", "hide-disabled", "$$$DISABLED_SETTINGS_DISABLED$$$", "$$$DISABLED_SETTINGS_ENABLED$$$");
+			setupToggleButton("visible_settings", "hide-visible", "$$$VISIBLE_SETTINGS_DISABLED$$$", "$$$VISIBLE_SETTINGS_ENABLED$$$");
+			setupToggleButton("local_settings", "hide-local", "$$$LOCAL_CHANGES_DISABLED$$$", "$$$LOCAL_CHANGES_ENABLED$$$");
+			setupToggleButton("different_settings", "hide-diff", "$$$DIFFERENT_SETTINGS_DISABLED$$$", "$$$DIFFERENT_SETTINGS_ENABLED$$$");
 
-            /* Setup search box */
-            document.addEventListener("DOMContentLoaded", function() {
-                const searchInput = document.getElementById("search_settings");
-                const settingRows = document.querySelectorAll(".setting-row");
+			/* Setup search box */
+			document.addEventListener("DOMContentLoaded", function() {
+				const searchInput = document.getElementById("search_settings");
+				const settingRows = document.querySelectorAll(".setting-row");
 
-                searchInput.addEventListener("input", function() {
-                    const searchTerm = searchInput.value.toLowerCase();
-                    if (searchTerm === ""){
-                        document.body.classList.remove("search-active");
-                    } else {
-                        document.body.classList.add("search-active")
-                    }
+				searchInput.addEventListener("input", function() {
+					const searchTerm = searchInput.value.toLowerCase();
+					if (searchTerm === ""){
+						document.body.classList.remove("search-active");
+					} else {
+						document.body.classList.add("search-active")
+					}
 
-                    settingRows.forEach(row => {
-                        // Remove existing search visibility classes first
-                        row.classList.remove("search-show", "search-hide");
+					settingRows.forEach(row => {
+						// Remove existing search visibility classes first
+						row.classList.remove("search-show", "search-hide");
 
-                        if (searchTerm === "") {
-                            // If search box is blank, remove both classes and let other CSS rules take over
-                            // (already done by the remove() call above)
-                        } else {
-                            const settingNameCell = row.querySelector("td:first-child"); // First cell contains setting
-                            if (settingNameCell) {
-                                const settingText = settingNameCell.textContent.toLowerCase();
-                                const internalNameText = settingNameCell.getAttribute("title");
+						if (searchTerm === "") {
+							// If search box is blank, remove both classes and let other CSS rules take over
+							// (already done by the remove() call above)
+						} else {
+							const settingNameCell = row.querySelector("td:first-child"); // First cell contains setting
+							if (settingNameCell) {
+								const settingText = settingNameCell.textContent.toLowerCase();
+								const internalNameText = settingNameCell.getAttribute("title");
 
-                                let textToSearch = settingText;
-                                if (typeof(internalNameText) === "string" && internalNameText !== "") {
-                                    textToSearch += " " + internalNameText.toLowerCase();
-                                }
+								let textToSearch = settingText;
+								if (typeof(internalNameText) === "string" && internalNameText !== "") {
+									textToSearch += " " + internalNameText.toLowerCase();
+								}
 
-                                if (textToSearch.includes(searchTerm)) {
-                                    row.classList.add("search-show");
-                                } else {
-                                    row.classList.add("search-hide");
-                                }
-                            }
-                        }
-                    });
-                });
-                
-                /* Setup search clear button */
-                const clearSearchButton = document.getElementById("clear_search")
-                if (clearSearchButton){
-                    clearSearchButton.addEventListener("click", function() {
-                        searchInput.value = "";
-                        // Manually fire input() event on search box
-                        const event = new Event("input", {
-                            bubbles: true,
-                            cancelable: true
-                        });
-                        document.getElementById("search_settings").dispatchEvent(event);
-                    });
-                };
-            });
+								if (textToSearch.includes(searchTerm)) {
+									row.classList.add("search-show");
+								} else {
+									row.classList.add("search-hide");
+								}
+							}
+						}
+					});
+				});
 
-
-        </script>
-    </body>
+				/* Setup search clear button */
+				const clearSearchButton = document.getElementById("clear_search")
+				if (clearSearchButton){
+					clearSearchButton.addEventListener("click", function() {
+						searchInput.value = "";
+						// Manually fire input() event on search box
+						const event = new Event("input", {
+							bubbles: true,
+							cancelable: true
+						});
+						document.getElementById("search_settings").dispatchEvent(event);
+					});
+				};
+			});
+		</script>
+	</body>
 </html>
