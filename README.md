@@ -8,14 +8,17 @@ I suppose you can keep it with your gcode files as a reference. Or send it to ot
 
 This is the sort of thing that probably has a million and one uses, even if I can only name five of them. You lovely people out there are much better at coming up with ways to use things than I am, so I'm sure you'll figure out the other 999,996 uses.
 
-### So how do I use it?
-Just set up your print, then open the *Extensions* menu, go down to *HTML Settings Export* then click *Export settings*.
-
 ### What cool things does it do?
 - Search the settings if you're looking for a specific thing!
+- Compare two different profiles side by side. Even for different printers!
 - Filter the output to only show settings that have been changed from the default.
 - Hide/show disabled settings to get rid of clutter of stuff that doesn't apply.
 - Hover your mouse over a setting name to get what Cura calls it internally.
+
+### So how do I use it?
+Just set up your print, then open the *Extensions* menu, go down to *HTML Settings Export* then click *Export settings*.
+
+To compare two profiles, activate the first profile, then in the *HTML Settings Export* menu click *Select first profile for comparison*. Then activate your other profile and select *Export comparison with first profile*.
 
 ---
 ### Got feedback? Feature suggestion? Find a bug? Just did something awesome and want to share it with someone?
@@ -23,6 +26,10 @@ I want to know about it! Just jump by the [GitHub repo](https://github.com/slash
 
 ---
 ### Version History
+#### v1.2.0:
+- **Compare two profiles side by side!** (That's the headliner this time.)
+- Exported web pages have had their file size reduced by about 50%.
+- Printer name added to page.
 #### v1.1.0:
 - **Added setting search function to output page!** (That's the headliner here.)
 - Buttons for hiding/showing sets of settings now change their text based on state.
