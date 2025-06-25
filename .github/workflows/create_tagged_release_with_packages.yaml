@@ -25,7 +25,10 @@ jobs:
         run: |
           cp __init__.py ../build/
           cp html_end.html ../build/
+          cp html_main_start.html ../build/
           cp html_start.html ../build/
+          cp html_sticky_compare.html ../build/
+          cp html_sticky_report.html ../build/
           cp HTMLSettingsExportReborn.py ../build/
           cp LICENSE ../build/
           cp plugin.json ../build/

@@ -101,13 +101,8 @@
 				background-color: #BBB;
 			}
 
-			/* Add a bit of room between categories */
-			.category-row { margin-bottom: 20px; }
-			/* Add a bit of room between each extruder's settings */
-			.category-row td { margin-right: 15px; }
-
 			/* Set up table spacing so I tell them what to do, not the other way around */
-			table.category {
+			table.c-category {
 				width: var(--category-table-width);
 				border-collapse: collapse;
 				border-spacing: 0;
@@ -116,30 +111,30 @@
 			}
 
 			/* Set alternate row colouring early so specific classes will override it */
-			table.category tr:nth-child(even) { background-color: #EEEEEE; }
+			table.c-category tr:nth-child(even) { background-color: #EEEEEE; }
 
 			/* Specific row types that will override the above */
-			table.category tr.disabled { background-color: #CFCFCF; color: #717171; }
+			table.c-category tr.s-disabled { background-color: #CFCFCF; color: #717171; }
 			/* There can be large blocks of disabled settings so alternate their colours */
-			table.category tr.disabled:nth-child(even) { background-color: #C0C0C0; }
-			table.category tr.local, table.category td.local { background-color: #77DD77; }
-			table.category tr.visible { background-color: #CCBB92; }
+			table.c-category tr.s-disabled:nth-child(even) { background-color: #C0C0C0; }
+			table.c-category tr.s-local, table.c-category td.s-local { background-color: #77DD77; }
+			table.c-category tr.visible { background-color: #CCBB92; }
 
 			/* Cell types for values out of bounds */
-			td.error { background-color: #CC5555; color: #444; }
-			td.warning { background-color: #FFEE92; color: #444 }
+			td.error-error { background-color: #CC5555; color: #444; }
+			td.error-warning { background-color: #FFEE92; color: #444 }
 			/* Slightly darker backgrounds for darker rows */
-			tr:nth-child(even) > td.error { background-color: #BB4444; }
-			tr:nth-child(even) > td.warning { background-color: #dcd083; }
-			tr:nth-child(even).local, tr:nth-child(even) > td.local { background-color: #5B5}
+			tr:nth-child(even) > td.error-error { background-color: #BB4444; }
+			tr:nth-child(even) > td.error-warning { background-color: #dcd083; }
+			tr:nth-child(even).s-local, tr:nth-child(even) > td.s-local { background-color: #5B5}
 
 			/* Hide row types depending on user selection */
-			body.hide-disabled tr.disabled { display: none; }
-			body.hide-local tr:not(.local, .some-local) { display: none; }
-			body.hide-local details:not(:has(tr.local, tr.some-local)) {
+			body.hide-disabled tr.s-disabled { display: none; }
+			body.hide-local tr:not(.s-local, .some-s-local) { display: none; }
+			body.hide-local details:not(:has(tr.s-local, tr.some-s-local)) {
 				 display: none;  /* Hide <details> block if it contains no user changed settings */
 			}
-			body.hide-visible tr.visible { display: none; }
+			body.hide-visible tr.s-hidden { display: none; }
 			body.hide-diff tr:not(.compare-diff) { display: none; }
 
 			body.search-active details:not(:has(tr.search-show)) {
@@ -182,7 +177,7 @@
 			}
 
 			/* Centre the thumbnail */
-			img.thumbnail {
+			img.t-thumbnail {
 				display: block;
 				margin-left: auto;
 				margin-right: auto;

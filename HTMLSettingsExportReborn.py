@@ -6,13 +6,15 @@
 #--------------------------------------------------------------------------------------------------
 # Version history (Reborn edition)
 # v1.2.0:
-#   - Profile comparison! Two different profiles side by side is what everyone wanted, right?
+#   - Profile comparison! Two different profiles side by side is what everyone wanted, right? Even works for different printers!
 #   - That did require a significant refactor internally (as if I hadn't done that once already... *sigh*)
-#   - Output HTML code is now made smaller with a few tricks:
-#       - Crimes against spaces
+#   - Output HTML code is now made smaller (~45% reduction) with a few tricks:
+#       - Crimes against spaces. If somebody wants me to turn myself in, just tell me where and buy me a plane ticket.
 #       - Severely abbreviating CSS class names in the output (but severely making them more safe on the inside!)
 #       - Comments stripped (if you want to see why I did stuff... look at the source. They're not stripped there.)
 #       - Adding a fair amount of size to the plugin to reduce the size of the output. It's paradoxatastic!
+#   - Added printer name to output (seems like it should have been there before, but anyway.)
+#   - Tracked down and took care of a couple of elusive "which extruder" settings for single extruder exports.
 # v1.1.0:
 #   - Added search function to output page. That actually required next to no effort here in the backend, it's all JS and CSS, just had to add classes to some elements it generates programmatically.
 #   - Show/hide disabled/local settings now change their button text depending on state. That's all JS. All I had to do in here was fill in some placeholder strings. Does that make it worth listing here?
@@ -95,26 +97,26 @@ class CssClasses(Enum):
         self._abbr_name = abbr_name
 
     # These ones referenced in Python code
-    CATEGORY = ("category", "ca")
+    CATEGORY = ("c-category", "ca")
     CATEGORY_HEADER = ("category-header", "ch")
-    CENTRE = ("centre", "ce")
+    CENTRE = ("t-centre", "ce")
     CHILD_SPACER = ("child-spacer", "cs")
     COLLAPSIBLE_SETTING = ("collapsible-setting", "cls")
-    COMPARE_DIFFERENT = ("compare-different", "cd")
-    ERROR_ERROR = ("error", "ee")
-    ERROR_WARNING = ("warning", "ew")
+    COMPARE_DIFFERENT = ("compare-diff", "cd")
+    ERROR_ERROR = ("error-error", "ee")
+    ERROR_WARNING = ("error-warning", "ew")
     POSTS_SETTINGS = ("posts-settings", "ps")
-    SETTING_DISABLED = ("setting-disabled", "di")
-    SETTING_HIDDEN = ("setting-hidden", "hi")
+    SETTING_DISABLED = ("s-disabled", "di")
+    SETTING_HIDDEN = ("s-hidden", "hi")
     SETTING_LABEL = ("setting-label", "sl")
-    SETTING_LOCAL = ("local", "lo")
-    SETTING_NORMAL = ("normal", "no")
+    SETTING_LOCAL = ("s-local", "lo")
+    SETTING_NORMAL = ("s-normal", "no")
     SETTING_ROW = ("setting-row", "sr")
     SETTING_VALUE = ("setting-value", "sv")
     SOME_DISABLED = ("some-disabled", "sdi")
     SOME_HIDDEN = ("some-hidden", "shi")
     SOME_LOCAL = ("some-local", "slo")
-    THUMBNAIL = ("thumbnail", "tn")
+    THUMBNAIL = ("t-thumbnail", "tn")
     TWO_COLUMN_LEFT = ("two-column-left", "tcl")
     TWO_COLUMN_RIGHT = ("two-column-right", "tcr")
 
@@ -123,6 +125,7 @@ class CssClasses(Enum):
     HEADER_ROW = ("header-row", "hr")
     HEADER_ROW_BOTTOM = ("header-bottom-row", "hrb")
     HEADER_ROW_TOP = ("header-top-row", "hrt")
+    HEADER_TEXT = ("header-text", "ht")
     MAIN_CONTENT_WRAPPER = ("main-content-wrapper", "mc")
     PROFILE_NAME = ("profile-name", "pn")
     SETTING_VISIBILITY = ("setting-visibility", "vi")
@@ -167,20 +170,24 @@ class CategorySetting:
 
     def make_td_no_children(self, cell_indent: int = 0) -> list[str]:
         """Makes a <td> cell for each extruder for this setting (no recursion)"""
-        if self.skip:
-            self.value = ""
 
         td_lines = []
 
         cell_class = []
         cell_tooltip = []
         for i, value in enumerate(self.value):
-            if self.error_class[i]:
-                cell_class.append(self.error_class[i])
-            elif self.css_class[i]:
-                cell_class.append(self.css_class[i])
-            else:
+            if self.skip:
+                value = ""
+                self.error_class[i] = ""
+                self.css_class[i] = ""
                 cell_class.append("")
+            else:
+                if self.error_class[i]:
+                    cell_class.append(self.error_class[i])
+                elif self.css_class[i]:
+                    cell_class.append(self.css_class[i])
+                else:
+                    cell_class.append("")
             # Set tooltip based on class
             cell_tooltip.append(HTMLSettingsExportReborn.css_class_to_human_readable(cell_class[i]))
             display_value = html.escape(value.replace("<br>", "\n")).replace("\n", "<br>")  # For when you want a safely escaped value which is subsequently unescaped.
@@ -208,6 +215,7 @@ class SettingProfile:
     settings_labels: dict[str, str] = field(default_factory = dict)
     profile_name: str = ""
     preset_name: str = ""
+    printer_name: str = ""
     extruder_count: int = 1
     global_changed_settings: list[Any] = field(default_factory = list)
     extruder_changed_settings: list[list[Any]] = field(default_factory = list)
@@ -502,6 +510,8 @@ class HTMLSettingsExportReborn(Extension):
     HTML_REPLACEMENT_PROFILE_A_NAME: str = "$$$PROFILE_A_NAME$$$"
     HTML_REPLACEMENT_PROFILE_B: str = "$$$PROFILE_B$$$"
     HTML_REPLACEMENT_PROFILE_B_NAME: str = "$$$PROFILE_B_NAME$$$"
+    HTML_REPLACEMENT_PRINTER_A_NAME: str = "$$$PRINTER_A_NAME$$$"
+    HTML_REPLACEMENT_PRINTER_B_NAME: str = "$$$PRINTER_B_NAME$$$"
     HTML_REPLACEMENT_SEARCH_PLACEHOLDER: str = "$$$SEARCH_SETTINGS_PLACEHOLDER$$$"
     HTML_REPLACEMENT_CLEAR_SEARCH: str = "$$$CLEAR_SEARCH$$$"
 
@@ -521,7 +531,7 @@ class HTMLSettingsExportReborn(Extension):
         self._compare_profile_b: SettingProfile = None
         self._profile_compare: CompareProfiles = None
 
-        self._minify_output: True
+        self._minify_output = True
 
         self._export_fail = False  # I catch so many exceptions I sometimes end up with blank files
 
@@ -650,18 +660,29 @@ class HTMLSettingsExportReborn(Extension):
     def _minify_css_classes(self, page: str) -> str:
         """Reduce output file size by replacing full CSS class names in plugin code with abbreviations"""
         replacement_dict = {cls.full: cls.abbr for cls in CssClasses}
-        
         for key, value in replacement_dict.items():
-            search = r'(^|\"|\s|\.)(?:' + re.escape(key) + r')(\s|\")'
+            search = r'(^|[\s"\'{}#:>+\~\[\],().=\\])(?:' + re.escape(key) + r')([\s"\'{}#:>+\~\[\],().=\\]|$)'
             mini = r'\g<1>' + value + r'\g<2>'
-            Logger.log("d", f'Regex search for {key} = {search} to replace with {mini}')
+            #Logger.log("d", f'Regex search for {key} = {search} to replace with {mini}')
             page = re.sub(search, mini, page)
+        comments_section = []
+        comments_section.append("<!-- CSS class reference:")
+        for full_name in sorted(replacement_dict.keys()):
+            abbr = replacement_dict[full_name]
+            comments_section.append(f'{abbr}: {full_name}')
+        comments_section.append("-->")
+        html_split_end = page.rpartition("</html>")
+        page = html_split_end[0] + "\n".join(comments_section) + "\n" + html_split_end[1] + html_split_end[2]
         return page
 
     def _make_tr_2_cells(self, key: str, value: Any, tr_indent: int = 0, row_class: str = None) -> str:
         """Generates an HTML table row string name/data pair."""
         # chr(34) is " which I can't escape in an f-string expression in Python 3.10
-        return indent(f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}><td class="{CssClasses.TWO_COLUMN_LEFT.full}">{key}</td><td class="{CssClasses.TWO_COLUMN_RIGHT.full}">{value}</td></tr>', tr_indent)
+        new_tr = []
+        new_tr.append(indent(f'<tr{(" class=" + (chr(34)) + row_class + chr(34)) if row_class else ""}>', tr_indent))
+        new_tr.append(indent(f'<td class="{CssClasses.TWO_COLUMN_LEFT.full}">{key}</td><td class="{CssClasses.TWO_COLUMN_RIGHT.full}">{value}</td>', tr_indent + 1))
+        new_tr.append(indent('</tr>', tr_indent))
+        return "\n".join(new_tr)
 
     def _make_ol_from_list(self, items: list, base_indent_level: int = 0, prefix: str = "", suffix: str = "", return_single_item: bool = True) -> str:
         """Makes a HTML <ol> from a list of items and indents it."""
@@ -671,7 +692,7 @@ class HTMLSettingsExportReborn(Extension):
         list_item_htmls = [indent(f'<li>{prefix}{item}{suffix}</li>', base_indent_level + 2) for item in items]
 
         return("\n" +
-               indent('<ol>', base_indent_level + 1) +
+               indent('<ol>', base_indent_level + 1) + "\n"
                "\n".join(list_item_htmls) + "\n" +
                indent('</ol>', base_indent_level + 1)
                )
@@ -694,11 +715,13 @@ class HTMLSettingsExportReborn(Extension):
         if preset_name in empty_presets:
             preset_name = catalog.i18nc("@page:missing_profile_name", "None")
 
+
         Logger.log("d", f"_get_setting_profile about to run with profile_name = {profile_name}")
         profile = SettingProfile(profile_name = profile_name, preset_name = preset_name, extruder_count = extruder_count)
         profile.global_changed_settings = global_stack.getTop().getAllKeys()
         profile.extruder_changed_settings = [extruder.getTop().getAllKeys() for extruder in extruder_stacks]
         profile.visible_settings = SettingPreferenceVisibilityHandler().getVisible()
+        profile.printer_name = global_stack.definition.getName()
         for category in profile.settings:
             category_settings, category_label = self._get_category_settings_list(
                 category, extruder_stacks, profile,
@@ -761,16 +784,17 @@ class HTMLSettingsExportReborn(Extension):
                     # Log if restoring locale fails (should be rare if `original_locale` was valid)
                     Logger.log("e", f"Failed to restore original locale: {e}")
 
-        # Get a thumbnail first because it might take a little bit of time
-        encoded_snapshot: str = None
-        snapshot = self._createSnapshot()
-        if snapshot:
-            thumbnail_buffer = QBuffer()
-            
-            thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
-                    
-            snapshot.save(thumbnail_buffer, "PNG")
-            encoded_snapshot = thumbnail_buffer.data().toBase64().data().decode("utf-8")
+        if self._export_mode == ExportMode.REPORT:
+            # Get a thumbnail first because it might take a little bit of time
+            encoded_snapshot: str = None
+            snapshot = self._createSnapshot()
+            if snapshot:
+                thumbnail_buffer = QBuffer()
+                
+                thumbnail_buffer.open(QBuffer.OpenModeFlag.ReadWrite)
+                        
+                snapshot.save(thumbnail_buffer, "PNG")
+                encoded_snapshot = thumbnail_buffer.data().toBase64().data().decode("utf-8")
 
         
         # Indent level for rows in the top table
@@ -840,6 +864,8 @@ class HTMLSettingsExportReborn(Extension):
                 self.HTML_REPLACEMENT_PROFILE_A_NAME: self._profile_compare.profile_a.profile_name + f' ({self._profile_compare.profile_a.preset_name})',
                 self.HTML_REPLACEMENT_PROFILE_B: catalog.i18nc("@sticky:profile_b", "Profile B"),
                 self.HTML_REPLACEMENT_PROFILE_B_NAME: self._profile_compare.profile_b.profile_name + f' ({self._profile_compare.profile_b.preset_name})',
+                self.HTML_REPLACEMENT_PRINTER_A_NAME: self._profile_compare.profile_a.printer_name,
+                self.HTML_REPLACEMENT_PRINTER_B_NAME: self._profile_compare.profile_b.printer_name,
                 self.HTML_REPLACEMENT_DIFFERENT_SETTINGS_DEFAULT: catalog.i18nc("@button:different_settings", "Toggle different settings"),
             }
             sticky_replacements.update(compare_replacements)
@@ -861,6 +887,8 @@ class HTMLSettingsExportReborn(Extension):
             output_html.append(indent('<table "border="1" cellpadding="3">', info_indent - 1))
             # Project name
             output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Project Name"), print_information.jobName), info_indent))
+            # Printer name
+            output_html.append(indent(self._make_tr_2_cells(catalog.i18nc("@label", "Printer"), setting_profile.printer_name), info_indent))
             # Thumbnail
             if encoded_snapshot:
                 output_html.append(indent(f'<tr><td colspan="2"><img class="{CssClasses.THUMBNAIL.full}" src="data:image/png;base64,{encoded_snapshot}" width="300" height="300", alt="{print_information.jobName}"></td></tr>', info_indent))
@@ -1000,7 +1028,7 @@ class HTMLSettingsExportReborn(Extension):
         
         # These keywords have their value checked
         multi_extruder_keywords: list[str] = ["extruder"]
-        multi_extruder_invalid_values: list[str] = ["-1", "0"]
+        multi_extruder_invalid_values: list[str] = ["-1", "0", "1"]
         for keyword in multi_extruder_keywords:
             if keyword in setting_name and str(setting_value) in multi_extruder_invalid_values:
                 return True
@@ -1047,7 +1075,7 @@ class HTMLSettingsExportReborn(Extension):
             return ""
         row_css_class = self.get_css_row_class(setting.css_class)
         category_setting_html_lines: list[str] = []
-        category_setting_html_lines.append(indent(f'<tr class={CssClasses.SETTING_ROW.full}{(" " + row_css_class) if row_css_class else ""}">', base_indent))
+        category_setting_html_lines.append(indent(f'<tr class="{CssClasses.SETTING_ROW.full}{(" " + row_css_class) if row_css_class else ""}">', base_indent))
         cell_tooltip = setting.internal_representation()
         child_prefix = self.CHILD_SPACER * setting.child_level
         category_setting_html_lines.append(indent(f'<td title="{html.escape(cell_tooltip)}" class="{CssClasses.SETTING_LABEL.full}">{child_prefix}{html.escape(setting.label)}</td>', base_indent + 1))
