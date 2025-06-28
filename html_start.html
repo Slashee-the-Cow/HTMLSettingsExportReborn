@@ -31,7 +31,7 @@
 			}
 
 			/* Styles for the main content area */
-			.main-content-wrapper {
+			.--main-content-wrapper-- {
 				max-width: 800px; /* Adjust this value to your preferred content width */
 				width: 90%; /* Use a percentage for responsiveness, so it shrinks on smaller screens */
 				background-color: #ffffff; /* White background for content */
@@ -42,7 +42,7 @@
 			}
 
 			/* Set up sticky header at top */
-			.sticky-header {
+			.--sticky-header-- {
 				position: sticky;
 				top: 0;
 				z-index: 1000;
@@ -52,29 +52,29 @@
 				padding-bottom: 10px;
 			}
 			/* Set maximum width of header content */
-			.header-content-wrapper {
+			.--header-content-wrapper-- {
 				max-width: 1200px;
 				margin: 0 auto; /* Centre content */
 				padding: 0 40px; /* Make sure content doesn't hug the sides */
 			}
 			/* Use Flexbox for even spacing on each row and have padding to separate */
-			.header-row {
+			.--header-row-- {
 				display: flex;
 				align-items: center;
 				margin-bottom: 15px;
 				justify-content: space-evenly;
 			}
 			/* Set up text to go to each side */
-			.header-top-row {
+			.--header-top-row-- {
 				justify-content: space-evenly;
 			}
 			
-			.header-bottom-row {
+			.--header-bottom-row-- {
 				justify-content: center;
 				margin-bottom: 0px; /* It's on the bottom */
 			}
 			/* Make header text a bit more noticeable */
-			.header-text {
+			.--header-text-- {
 				font-size: 150%;
 				font-weight: bold;
 			}
@@ -89,7 +89,7 @@
 			}
 
 			/* Style buttons in header */
-			.setting-visibility {
+			.--setting-visibility-- {
 				background-color: #AAA;
 				color: #000;
 				border: 1px solid #777;
@@ -97,12 +97,12 @@
 				font-size: 1.1em;
 			}
 			/* Change button background colour on hover */
-			.setting-visibility:hover {
+			.--setting-visibility--:hover {
 				background-color: #BBB;
 			}
 
 			/* Set up table spacing so I tell them what to do, not the other way around */
-			table.c-category {
+			table.--category-- {
 				width: var(--category-table-width);
 				border-collapse: collapse;
 				border-spacing: 0;
@@ -111,31 +111,33 @@
 			}
 
 			/* Set alternate row colouring early so specific classes will override it */
-			table.c-category tr:nth-child(even) { background-color: #EEEEEE; }
+			table.--category-- tr:nth-child(even) { background-color: #EEEEEE; }
 
 			/* Specific row types that will override the above */
-			table.c-category tr.s-disabled { background-color: #CFCFCF; color: #717171; }
+			table.--category-- tr.--disabled-- { background-color: #CFCFCF; color: #717171; }
 			/* There can be large blocks of disabled settings so alternate their colours */
-			table.c-category tr.s-disabled:nth-child(even) { background-color: #C0C0C0; }
-			table.c-category tr.s-local, table.c-category td.s-local { background-color: #77DD77; }
-			table.c-category tr.visible { background-color: #CCBB92; }
+			table.--category-- tr.--disabled--:nth-child(even) { background-color: #C0C0C0; }
+			table.--category-- tr.--local--, table.--category-- td.--local-- { background-color: #77DD77; }
+			table.--category-- tr.--visible-- { background-color: #CCBB92; }
 
 			/* Cell types for values out of bounds */
-			td.error-error { background-color: #CC5555; color: #444; }
-			td.error-warning { background-color: #FFEE92; color: #444 }
+			td.--error-- { background-color: #CC5555; color: #444; }
+			td.--warning-- { background-color: #FFEE92; color: #444 }
 			/* Slightly darker backgrounds for darker rows */
-			tr:nth-child(even) > td.error-error { background-color: #BB4444; }
-			tr:nth-child(even) > td.error-warning { background-color: #dcd083; }
-			tr:nth-child(even).s-local, tr:nth-child(even) > td.s-local { background-color: #5B5}
+			tr:nth-child(even) > td.--error-- { background-color: #BB4444; }
+			tr:nth-child(even) > td.--warning-- { background-color: #dcd083; }
+			tr:nth-child(even).--local--, tr:nth-child(even) > td.--local-- { background-color: #5B5}
 
 			/* Hide row types depending on user selection */
-			body.hide-disabled tr.s-disabled { display: none; }
-			body.hide-local tr:not(.s-local, .some-s-local) { display: none; }
-			body.hide-local details:not(:has(tr.s-local, tr.some-s-local)) {
+			body.hide-disabled tr.--disabled-- { display: none; }
+			body.hide-local tr:not(.--local--, .--some-local--) { display: none; }
+			body.hide-local details:not(:has(tr.--local--, tr.--some-local--)) {
 				 display: none;  /* Hide <details> block if it contains no user changed settings */
 			}
-			body.hide-visible tr.s-hidden { display: none; }
-			body.hide-diff tr:not(.compare-diff) { display: none; }
+			body.hide-diff tr:not(.--compare-diff--) { display: none; }
+			body.hide-diff details:not(:has(tr.--compare-diff--)) {
+				 display: none;  /* Hide <details> block if it contains no user different settings */
+			}
 
 			body.search-active details:not(:has(tr.search-show)) {
 				 display: none !important; /* Hide <details> block if it contains no search results */
@@ -143,7 +145,7 @@
 
 			/* Make <summary> display a pointer (like a link) so it's
 				obvious it can be clicked and set background colour */
-			summary.category-header { 
+			summary.--category-header-- { 
 				cursor: pointer;
 				background-color: rgb(126, 151, 227);
 				width: calc(var(--category-table-width) - 15px);
@@ -151,7 +153,7 @@
 			}
 
 			/* Make sure <summary> elements used for toggling categories are on one line */
-			summary.category-header > * { display: inline-block; }
+			summary.--category-header-- > * { display: inline-block; }
 
 			/* Replace default open/close marker because it uses the right arrow
 				we're using for the child-spacer */
@@ -167,7 +169,7 @@
 				content: " - ";
 			}
 
-			details[open] summary.category-header {
+			details[open] summary.--category-header-- {
 				background-color: rgb(139, 157, 209)
 			}
 
@@ -177,33 +179,33 @@
 			}
 
 			/* Centre the thumbnail */
-			img.t-thumbnail {
+			img.--thumbnail-- {
 				display: block;
 				margin-left: auto;
 				margin-right: auto;
 			}
 
 			/* Make child indicator wide enough to be easily parsed */
-			div.child-spacer { 
+			div.--child-spacer-- { 
 				width: 1.5em;
 				display: inline-block;
 			}
 
 			/* Centre text */
-			.text-centre {
+			.--text-centre-- {
 				text-align: center;
 			}
 
 			/* Width for setting label and value, taking box sizing into account for padding */
-			td.setting-label {
+			td.--setting-label-- {
 				width: calc(var(--label-col-width) + var(--category-cell-spacing));
 				padding-right: var(--category-cell-spacing);
 			}
-			td.setting-value {
+			td.--setting-value-- {
 				width: calc(var(--value-col-width) + var(--category-cell-spacing));
 				padding-left: var(--category-cell-spacing)
 			}
-			td.posts-settings, tr.posts-settings > td.two-column-right{
+			td.--posts-settings--, tr.--posts-settings-- > td.--two-column-right--{
 				width: calc(var(--posts-settings-width) + var(--category-cell-spacing));
 			}
 			/* I know !important is bad semantically but it's easier

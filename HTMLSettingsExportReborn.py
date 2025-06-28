@@ -5,6 +5,11 @@
 # https://github.com/5axes/CuraHtmlDoc/
 #--------------------------------------------------------------------------------------------------
 # Version history (Reborn edition)
+# v1.2.1:
+#   - Fixed up some CSS with which I may have gotten a bit too careless using search + replace before.
+#   - Wrapped CSS class names in double hyphens to avoid collisions.
+#   - Prepended minified CSS class names with double underscores to avoid collisions (my insurance wishes I always went to this much effort to avoid collisions).
+#   - Updated a function or two that weren't ready for the New Era of CSS Class Names.
 # v1.2.0:
 #   - Profile comparison! Two different profiles side by side is what everyone wanted, right? Even works for different printers!
 #   - That did require a significant refactor internally (as if I hadn't done that once already... *sigh*)
@@ -97,40 +102,42 @@ class CssClasses(Enum):
         self._abbr_name = abbr_name
 
     # These ones referenced in Python code
-    CATEGORY = ("c-category", "ca")
-    CATEGORY_HEADER = ("category-header", "ch")
-    CENTRE = ("t-centre", "ce")
-    CHILD_SPACER = ("child-spacer", "cs")
-    COLLAPSIBLE_SETTING = ("collapsible-setting", "cls")
-    COMPARE_DIFFERENT = ("compare-diff", "cd")
-    ERROR_ERROR = ("error-error", "ee")
-    ERROR_WARNING = ("error-warning", "ew")
-    POSTS_SETTINGS = ("posts-settings", "ps")
-    SETTING_DISABLED = ("s-disabled", "di")
-    SETTING_HIDDEN = ("s-hidden", "hi")
-    SETTING_LABEL = ("setting-label", "sl")
-    SETTING_LOCAL = ("s-local", "lo")
-    SETTING_NORMAL = ("s-normal", "no")
-    SETTING_ROW = ("setting-row", "sr")
-    SETTING_VALUE = ("setting-value", "sv")
-    SOME_DISABLED = ("some-disabled", "sdi")
-    SOME_HIDDEN = ("some-hidden", "shi")
-    SOME_LOCAL = ("some-local", "slo")
-    THUMBNAIL = ("t-thumbnail", "tn")
-    TWO_COLUMN_LEFT = ("two-column-left", "tcl")
-    TWO_COLUMN_RIGHT = ("two-column-right", "tcr")
+    CATEGORY = ("--category--", "__a")
+    CATEGORY_HEADER = ("--category-header--", "__b")
+    CENTRE = ("--centre--", "__c")
+    CHILD_SPACER = ("--child-spacer--", "__d")
+    COLLAPSIBLE_SETTING = ("--collapsible-setting--", "__e")
+    COMPARE_DIFFERENT = ("--compare-diff--", "__f")
+    ERROR_ERROR = ("--error--", "__g")
+    ERROR_WARNING = ("--warning--", "__h")
+    POSTS_SETTINGS = ("--posts-settings--", "__i")
+    SETTING_DISABLED = ("--disabled--", "__j")
+    SETTING_HIDDEN = ("--hidden--", "__k")
+    SETTING_LABEL = ("--setting-label--", "__l")
+    SETTING_LOCAL = ("--local--", "__m")
+    SETTING_NORMAL = ("--normal--", "__n")
+    SETTING_ROW = ("--setting-row--", "__o")
+    SETTING_VALUE = ("--setting-value--", "__p")
+    SETTING_VISIBLE = ("--visible--", "__q")
+    SOME_DISABLED = ("--some-disabled--", "__r")
+    SOME_HIDDEN = ("--some-hidden--", "__s")
+    SOME_LOCAL = ("--some-local--", "__t")
+    THUMBNAIL = ("--thumbnail--", "__u")
+    TWO_COLUMN_LEFT = ("--two-column-left--", "__v")
+    TWO_COLUMN_RIGHT = ("--two-column-right--", "__w")
 
     # These ones only referenced in template files
-    HEADER_CONTENT_WRAPPER = ("header-content-wrapper", "hc")
-    HEADER_ROW = ("header-row", "hr")
-    HEADER_ROW_BOTTOM = ("header-bottom-row", "hrb")
-    HEADER_ROW_TOP = ("header-top-row", "hrt")
-    HEADER_TEXT = ("header-text", "ht")
-    MAIN_CONTENT_WRAPPER = ("main-content-wrapper", "mc")
-    PROFILE_NAME = ("profile-name", "pn")
-    SETTING_VISIBILITY = ("setting-visibility", "vi")
-    STICKY_HEADER = ("sticky-header", "sh")
-    TEXT_CENTRE = ("text-centre", "tc")
+    HEADER_CONTENT_WRAPPER = ("--header-content-wrapper--", "__x")
+    HEADER_ROW = ("--header-row--", "__y")
+    HEADER_ROW_BOTTOM = ("--header-bottom-row--", "__z")
+    HEADER_ROW_TOP = ("--header-top-row--", "__aa")
+    HEADER_TEXT = ("--header-text--", "__ab")
+    MAIN_CONTENT_WRAPPER = ("--main-content-wrapper--", "__ac")
+    PROFILE_NAME = ("--profile-name--", "__ad")
+    PROJECT_NAME = ("--project_name--", "__ae")
+    SETTING_VISIBILITY = ("--setting-visibility--", "__af")
+    STICKY_HEADER = ("--sticky-header--", "__ag")
+    TEXT_CENTRE = ("--text-centre--", "__ah")
 
     @property
     def full(self) -> str:
@@ -667,8 +674,8 @@ class HTMLSettingsExportReborn(Extension):
             page = re.sub(search, mini, page)
         comments_section = []
         comments_section.append("<!-- CSS class reference:")
-        for full_name in sorted(replacement_dict.keys()):
-            abbr = replacement_dict[full_name]
+        # Sort by the abbreviation (the value in the dictionary)
+        for full_name, abbr in sorted(replacement_dict.items(), key=lambda item: item[1]):
             comments_section.append(f'{abbr}: {full_name}')
         comments_section.append("-->")
         html_split_end = page.rpartition("</html>")
@@ -1110,11 +1117,10 @@ class HTMLSettingsExportReborn(Extension):
         for possible_class in possible_classes:
             if all(css_class == possible_class for css_class in classes):
                 return possible_class
-        for possible_class in possible_classes[:-1]:
-            # We don't want "some-normal"
-            if any(css_class == possible_class for css_class in classes):
-                return f"some-{possible_class}"
-        return "normal"  # Fallback if they're all normal
+        for full_class, some_class in zip(possible_classes[:-1], (CssClasses.SOME_LOCAL.full, CssClasses.SOME_DISABLED.full, CssClasses.SOME_HIDDEN.full)):
+            if any(css_class == full_class for css_class in classes):
+                return some_class
+        return CssClasses.SETTING_NORMAL.full  # Fallback if they're all normal
 
     @staticmethod
     def css_class_to_human_readable(css_class: str) -> str:
