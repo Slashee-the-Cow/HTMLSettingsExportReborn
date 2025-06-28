@@ -26,6 +26,8 @@ I want to know about it! Just jump by the [GitHub repo](https://github.com/slash
 
 ---
 ### Version History
+#### v1.2.1:
+- Minor bug fixes.
 #### v1.2.0:
 - **Compare two profiles side by side!** (That's the headliner this time.)
 - Exported web pages have had their file size reduced by about 50%.
