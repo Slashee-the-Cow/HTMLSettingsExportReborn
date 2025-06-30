@@ -130,18 +130,32 @@
 
 			/* Hide row types depending on user selection */
 			body.hide-disabled tr.--disabled-- { display: none; }
-			body.hide-local tr:not(.--local--, .--some-local--) { display: none; }
+			body.hide-disabled details:not(:has(tr.--disabled--)) {
+				 display: none;  /* Hide <details> block if it contains no user changed settings */
+			}
+			body.hide-local table.--category-- > tbody > tr:not(.--local--, .--some-local--) { display: none; }
 			body.hide-local details:not(:has(tr.--local--, tr.--some-local--)) {
 				 display: none;  /* Hide <details> block if it contains no user changed settings */
 			}
-			body.hide-diff tr:not(.--compare-diff--) { display: none; }
+			body.hide-diff table.--category-- > tbody > tr:not(.--compare-diff--) { display: none; }
 			body.hide-diff details:not(:has(tr.--compare-diff--)) {
-				 display: none;  /* Hide <details> block if it contains no user different settings */
+				 display: none;  /* Hide <details> block if it contains no different settings */
 			}
 
 			body.search-active details:not(:has(tr.search-show)) {
 				 display: none !important; /* Hide <details> block if it contains no search results */
 			}
+
+			body.search-active.hide-disabled details:not(:has(tr.search-show:not(.--disabled--))) {
+				display: none !important;
+			}
+			body.search-active.hide-local details:not(:has(tr.search-show.--local--, tr.search-show.--some-local--)) {
+				display: none !important;
+			}
+			body.search-active.hide-diff details:not(:has(tr.search-show.--compare-diff--)) {
+				display: none !important;
+			}
+			
 
 			/* Make <summary> display a pointer (like a link) so it's
 				obvious it can be clicked and set background colour */
@@ -210,12 +224,12 @@
 			}
 			/* I know !important is bad semantically but it's easier
 			than coming up with a more specific but not fragile selector */
-			tr.search-hide {
-				display: none !important;
-			}
-			tr.search-show {
-				display: table-row !important;
-			}
+			tr.search-hide { display: none !important; }
+			tr.search-show { display: table-row !important; }
+			/* It's bad semantically because now I need more specific rules for other filters */
+			body.search-active.hide-disabled tr.--disabled--.search-show { display: none !important; }
+			body.search-active.hide-local table.--category-- > tbody > tr.search-show:not(.--local--, .--some-local--) { display: none !important; }
+			body.search-active.hide-diff table.--category-- > tbody > tr.search-show:not(.--compare-diff--) { display: none !important; }
 		</style>
 	</head>
 	<body>

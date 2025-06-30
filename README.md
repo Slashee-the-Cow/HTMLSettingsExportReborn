@@ -26,6 +26,8 @@ I want to know about it! Just jump by the [GitHub repo](https://github.com/slash
 
 ---
 ### Version History
+#### v1.2.2:
+- Fixed some output display problems when using filters and searching.
 #### v1.2.1:
 - Minor bug fixes.
 #### v1.2.0:
@@ -55,3 +57,4 @@ I want to know about it! Just jump by the [GitHub repo](https://github.com/slash
 
 ### Known Issues
 - Formatting of the "machine settings" section might result in narrow columns of the setting values with text wrapping across several lines.
+- Depending on active filters and search terms, catgories with empty tables may show up when searching while filters are active.
