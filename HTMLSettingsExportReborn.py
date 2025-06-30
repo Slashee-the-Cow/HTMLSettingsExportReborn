@@ -5,6 +5,8 @@
 # https://github.com/5axes/CuraHtmlDoc/
 #--------------------------------------------------------------------------------------------------
 # Version history (Reborn edition)
+# v1.2.2:
+#   - Messed around with CSS rules to fix display problems when filtering and searching (that's literally it, this note is the only change in the .py file).
 # v1.2.1:
 #   - Fixed up some CSS with which I may have gotten a bit too careless using search + replace before.
 #   - Wrapped CSS class names in double hyphens to avoid collisions.
