@@ -130,8 +130,8 @@
 
 			/* Hide row types depending on user selection */
 			body.hide-disabled tr.--disabled-- { display: none; }
-			body.hide-disabled details:not(:has(tr.--disabled--)) {
-				 display: none;  /* Hide <details> block if it contains no user changed settings */
+			body.hide-disabled details:not(:has(tbody > tr:not(.--disabled--))) {
+				 display: none;  /* Hide <details> block if it contains only disabled settings */
 			}
 			body.hide-local table.--category-- > tbody > tr:not(.--local--, .--some-local--) { display: none; }
 			body.hide-local details:not(:has(tr.--local--, tr.--some-local--)) {
